@@ -47,25 +47,27 @@
 
 1. `.env.example`을 `.env`로 복사합니다.
 2. `.env`의 `GEMINI_API_KEY`를 설정합니다.
-3. 아래 명령을 실행합니다.
+3. 아래 명령을 실행합니다. 스크립트는 `docker compose` 또는 `docker-compose`를 자동 감지하고, 안전한 Compose 프로젝트명 `book`을 사용해 기존 컨테이너를 `stop → rm → run` 순서로 재기동합니다.
 
 ```bash
-docker compose up --build
+bash start.sh
 ```
 
 첫 문서를 인덱싱할 때 Hugging Face 모델이 캐시에 다운로드됩니다. GPU가 없으면 자동으로 CPU를 사용하고 FP16을 끕니다.
 
 접속 주소:
 
-- 프론트엔드: http://localhost:3000
-- 채팅: http://localhost:3000/app
-- 관리자: http://localhost:3000/admin
-- 위젯: http://localhost:3000/widget
-- API: http://localhost:8000
-- Swagger: http://localhost:8000/docs
-- Health: http://localhost:8000/health
+- 채팅(기본 화면): http://localhost:7128
+- 관리자: http://localhost:7128/admin
+- 서비스 소개: http://localhost:7128/landing
+- 위젯: http://localhost:7128/widget
+- API: http://localhost:7127
+- Swagger: http://localhost:7127/docs
+- Health: http://localhost:7127/health
 
-개발 기본 관리자 계정은 `.env`의 `ADMIN_EMAIL`, `ADMIN_PASSWORD` 값입니다. 프로덕션 전 반드시 변경하세요.
+호스트 포트가 이미 사용 중이면 `.env`의 `FRONTEND_PORT`, `API_PORT`, `POSTGRES_PORT`를 바꾸세요. 프론트엔드 포트를 바꿀 때는 `FRONTEND_URL`과 `CORS_ORIGINS`도 같이 맞춰야 브라우저 요청이 CORS에서 막히지 않습니다.
+
+로그인 계정은 `apps/api/app/core/accounts.py`의 `ACCOUNTS` 목록에 직접 정의합니다. 회원가입은 없으며, 계정을 추가·수정한 뒤 API를 재시작하면 반영됩니다. 비밀번호가 평문으로 들어가므로 저장소를 공개하지 마세요.
 
 ### CPU
 

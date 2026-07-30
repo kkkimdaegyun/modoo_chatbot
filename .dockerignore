@@ -1,0 +1,14 @@
+.git
+.gitignore
+.env
+node_modules
+.next
+.vinext
+dist
+coverage
+apps/api/.venv
+apps/api/__pycache__
+apps/api/.pytest_cache
+apps/api/data
+**/__pycache__
+**/*.py[cod]

@@ -42,7 +42,9 @@ def test_rrf_and_qa_priority() -> None:
     assert fused[0]["qa_boost"] == 1.15
 
 
-def test_reranker_scores_and_sorts_real_candidates() -> None:
+def test_reranker_scores_and_sorts_real_candidates(monkeypatch) -> None:
+    # 리랭커는 CPU 비용 때문에 기본이 꺼져 있으므로, 이 테스트에서만 켠다.
+    monkeypatch.setattr("app.services.reranking.bge_reranker.settings.reranker_enabled", True)
     service = BGERerankerService()
     original = service.model
     service.model = FakeRerankerModel()

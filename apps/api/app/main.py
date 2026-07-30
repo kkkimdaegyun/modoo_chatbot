@@ -1,22 +1,44 @@
 from contextlib import asynccontextmanager
 from collections import defaultdict, deque
+import threading
 import time
 
+import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import admin, chat, debug, documents, qa, settings as settings_api, system
+from app.api import auth, chat, debug, documents, qa, settings as settings_api, system
 from app.core.config import settings
 from app.core.logging import configure_logging
+from app.services.embeddings import BGEEmbeddingService
+from app.services.ingestion import fail_interrupted_jobs
+from app.services.reranking import BGERerankerService
 
 configure_logging(settings.log_level)
+logger = structlog.get_logger(__name__)
+
+
+def warm_models() -> None:
+    """첫 질문이 모델 로딩 시간을 물지 않도록 미리 올린다. 실패해도 서비스는 계속 뜬다."""
+    try:
+        BGEEmbeddingService().load_model()
+    except Exception:
+        logger.exception("embedding_warmup_failed")
+    if settings.reranker_enabled:
+        try:
+            BGERerankerService().load_model()
+        except Exception:
+            logger.exception("reranker_warmup_failed")
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     settings.storage_path.mkdir(parents=True, exist_ok=True)
     settings.model_cache_path.mkdir(parents=True, exist_ok=True)
+    fail_interrupted_jobs()
+    # 모델 다운로드가 필요한 첫 실행에서 헬스체크가 막히지 않도록 백그라운드로 올린다.
+    threading.Thread(target=warm_models, name="model-warmup", daemon=True).start()
     yield
 
 
@@ -45,7 +67,7 @@ async def basic_rate_limit(request: Request, call_next):
         window.append(now)
     return await call_next(request)
 
-for router in [system.router, admin.router, documents.router, qa.router, settings_api.router, chat.router, chat.conversations_router, debug.router]:
+for router in [system.router, auth.router, documents.router, documents.knowledge_router, qa.router, settings_api.router, chat.router, chat.conversations_router, debug.router]:
     app.include_router(router)
 
 

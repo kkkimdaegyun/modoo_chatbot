@@ -1,11 +1,23 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
-ROOT = Path(__file__).resolve().parents[5]
+API_DIR = Path(__file__).resolve().parents[2]
+
+
+def _resolve_root() -> Path:
+    """레포 루트를 찾는다. 컨테이너에는 .env/.git이 없으므로 /app으로 폴백한다."""
+    for candidate in (API_DIR, *API_DIR.parents):
+        if (candidate / ".env").is_file() or (candidate / ".git").exists():
+            return candidate
+    return API_DIR
+
+
+ROOT = _resolve_root()
 
 
 class Settings(BaseSettings):
@@ -21,12 +33,11 @@ class Settings(BaseSettings):
     app_debug: bool = False
     frontend_url: str = "http://localhost:3000"
     backend_url: str = "http://localhost:8000"
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    # NoDecode: 콤마 구분 문자열을 쓰므로 pydantic-settings의 JSON 파싱을 끄고 아래 validator로 처리한다.
+    cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:3000"])
     log_level: str = "INFO"
 
     database_url: str = "postgresql+psycopg://ela:change-me@localhost:5432/ela_chatbot"
-    admin_email: str = "admin@example.com"
-    admin_password: str = "change-me"
     jwt_secret: str = "replace-with-a-long-random-secret"
     jwt_expire_minutes: int = 480
 
@@ -47,7 +58,9 @@ class Settings(BaseSettings):
     embedding_max_length: int = 8192
     normalize_embeddings: bool = True
 
-    reranker_enabled: bool = True
+    # bge-reranker-v2-m3(XLM-R large)는 CPU에서 후보 1개당 약 0.85초가 든다.
+    # 후보 30개면 25초라 대화형으로 못 쓰기 때문에 기본은 끄고, GPU가 있으면 켠다.
+    reranker_enabled: bool = False
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
     reranker_device: str = "auto"
     reranker_use_fp16: bool = True

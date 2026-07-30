@@ -1,9 +1,9 @@
-FROM node:22-alpine AS deps
+FROM node:22-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:22-alpine AS runner
+FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=development
 COPY --from=deps /app/node_modules ./node_modules
@@ -13,6 +13,9 @@ COPY public ./public
 COPY build ./build
 COPY worker ./worker
 COPY db ./db
+# vite.config.ts가 ./.openai/hosting.json을 import 한다.
+COPY .openai ./.openai
 COPY package.json package-lock.json tsconfig.json vite.config.ts next.config.ts postcss.config.mjs ./
 EXPOSE 3000
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# vinext는 --host가 아니라 --hostname을 받는다. 없으면 localhost에만 바인딩되어 포트 매핑이 닿지 않는다.
+CMD ["npm", "run", "dev", "--", "--hostname", "0.0.0.0"]

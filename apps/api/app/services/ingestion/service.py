@@ -7,12 +7,17 @@ import structlog
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models import Document, DocumentChunk, IngestionJob, QaItem
 from app.services.chunking import StructureAwareChunker
 from app.services.embeddings import BGEEmbeddingService
 from app.services.parsers import DocumentParser
 
 logger = structlog.get_logger(__name__)
+
+# 임베딩 단계가 차지하는 진행률 구간.
+EMBED_PROGRESS_START = 50
+EMBED_PROGRESS_END = 75
 
 
 def safe_filename(filename: str) -> str:
@@ -23,6 +28,30 @@ def safe_filename(filename: str) -> str:
 
 def content_hash(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
+
+
+def fail_interrupted_jobs() -> None:
+    """인제스션은 API 프로세스 안에서 돌기 때문에 재시작하면 중단된다.
+
+    그대로 두면 문서가 'processing'에 영구히 멈춘 것처럼 보이므로, 시작할 때
+    실패로 정리해서 관리자가 재인덱싱을 누를 수 있게 한다.
+    """
+    from app.db.session import SessionLocal
+
+    with SessionLocal() as db:
+        jobs = list(db.scalars(select(IngestionJob).where(IngestionJob.status.in_(["queued", "processing"]))))
+        if not jobs:
+            return
+        for job in jobs:
+            job.status = "failed"
+            job.stage = "서버 재시작으로 중단"
+            job.error_message = "처리 중 서버가 재시작되었습니다. 재인덱싱을 실행해 주세요."
+            document = db.get(Document, job.document_id)
+            if document and document.status not in ("ready",):
+                document.status = "failed"
+                document.error_message = job.error_message
+        db.commit()
+        logger.warning("interrupted_ingestion_jobs_failed", count=len(jobs))
 
 
 class IngestionService:
@@ -45,8 +74,7 @@ class IngestionService:
             chunks = self.chunker.chunk(parsed.blocks)
             if not chunks:
                 raise ValueError("문서에서 검색 가능한 텍스트를 찾지 못했습니다.")
-            self._stage(document, job, "processing", "임베딩 생성 중", 50)
-            vectors = self.embeddings.encode_documents([chunk.content for chunk in chunks])
+            vectors = self._embed_with_progress(document, job, [chunk.content for chunk in chunks])
             self._stage(document, job, "processing", "검색 인덱스 생성 중", 78)
             qa_models: list[QaItem] = []
             if parsed.source_type == "qa":
@@ -112,6 +140,23 @@ class IngestionService:
         self.db.commit()
         self.db.refresh(job)
         return job
+
+    def _embed_with_progress(self, document: Document, job: IngestionJob, texts: list[str]) -> list[list[float]]:
+        """임베딩이 가장 오래 걸리는 단계라, 배치마다 진행률을 올려서 막대가 실제로 움직이게 한다."""
+        total = len(texts)
+        batch_size = max(settings.embedding_batch_size, 1)
+        span = EMBED_PROGRESS_END - EMBED_PROGRESS_START
+        vectors: list[list[float]] = []
+        self._stage(document, job, "processing", f"임베딩 생성 중 (0/{total} 청크)", EMBED_PROGRESS_START)
+        for start in range(0, total, batch_size):
+            vectors.extend(self.embeddings.encode_documents(texts[start:start + batch_size]))
+            done = min(start + batch_size, total)
+            self._stage(
+                document, job, "processing",
+                f"임베딩 생성 중 ({done}/{total} 청크)",
+                EMBED_PROGRESS_START + round(span * done / total),
+            )
+        return vectors
 
     def _stage(self, document: Document, job: IngestionJob, status: str, stage: str, progress: int) -> None:
         document.status = status

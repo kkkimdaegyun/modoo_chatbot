@@ -12,11 +12,13 @@ from app.core.config import settings
 from app.core.security import require_admin
 from app.db.session import SessionLocal, get_db
 from app.models import Document, IngestionJob
-from app.schemas.api import DocumentResponse, JobResponse
+from app.schemas.api import DocumentResponse, JobResponse, KnowledgeDocument
 from app.services.ingestion import IngestionService, safe_filename
 from app.services.parsers import DocumentParser
 
 router = APIRouter(prefix="/api", tags=["documents"], dependencies=[Depends(require_admin)])
+# 채팅 화면은 로그인이 없으므로 "무엇이 임베딩됐는지"만 보여주는 공개 라우터를 따로 둔다.
+knowledge_router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 allowed_mimes = {
     "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "text/plain", "text/markdown", "text/csv", "application/csv", "application/json",
@@ -29,9 +31,43 @@ def run_ingestion(document_id: uuid.UUID, job_id: uuid.UUID) -> None:
         IngestionService(db).process(document_id, job_id)
 
 
+def _with_progress(document: Document, job: IngestionJob | None) -> DocumentResponse:
+    response = DocumentResponse.model_validate(document)
+    if document.status == "ready":
+        response.progress = 100
+        response.stage = job.stage if job else "지식 반영 완료"
+        return response
+    if job:
+        response.progress = job.progress
+        response.stage = job.stage
+        response.error_message = job.error_message
+    return response
+
+
 @router.get("/documents", response_model=list[DocumentResponse])
-def list_documents(db: Session = Depends(get_db)) -> list[Document]:
-    return list(db.scalars(select(Document).where(Document.workspace_id == workspace_id()).order_by(Document.created_at.desc())))
+def list_documents(db: Session = Depends(get_db)) -> list[DocumentResponse]:
+    documents = list(db.scalars(select(Document).where(Document.workspace_id == workspace_id()).order_by(Document.created_at.desc())))
+    if not documents:
+        return []
+    # 문서별 최신 작업만 남긴다. 오름차순으로 넣으므로 마지막 값이 최신이다.
+    latest: dict[uuid.UUID, IngestionJob] = {}
+    for job in db.scalars(
+        select(IngestionJob)
+        .where(IngestionJob.document_id.in_([document.id for document in documents]))
+        .order_by(IngestionJob.created_at)
+    ):
+        latest[job.document_id] = job
+    return [_with_progress(document, latest.get(document.id)) for document in documents]
+
+
+@knowledge_router.get("/documents", response_model=list[KnowledgeDocument])
+def list_knowledge(db: Session = Depends(get_db)) -> list[Document]:
+    """답변 근거로 쓸 수 있는(임베딩 완료된) 문서 목록. 파일명과 규모만 노출한다."""
+    return list(db.scalars(
+        select(Document)
+        .where(Document.workspace_id == workspace_id(), Document.status == "ready", Document.is_active.is_(True))
+        .order_by(Document.original_filename)
+    ))
 
 
 @router.post("/documents/upload", response_model=JobResponse)

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
+import { DEFAULT_BACKEND_PORT, RuntimeConfig } from "../lib/api";
 import { Providers } from "./providers";
 
 const geistSans = Geist({
@@ -34,9 +35,18 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // 브라우저 번들은 서버 환경변수를 못 읽으므로 여기서 실어 보낸다.
+  const runtimeConfig: RuntimeConfig = {
+    backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL || "",
+    backendPort: process.env.NEXT_PUBLIC_BACKEND_PORT || DEFAULT_BACKEND_PORT,
+  };
   return (
     <html lang="ko">
       <body className={`${geistSans.variable} antialiased`}>
+        <script
+          id="ela-runtime-config"
+          dangerouslySetInnerHTML={{ __html: `window.__ELA__=${JSON.stringify(runtimeConfig)}` }}
+        />
         <Providers>{children}</Providers>
       </body>
     </html>

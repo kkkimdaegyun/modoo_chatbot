@@ -1,0 +1,38 @@
+{
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/.next/**": true,
+    "**/.vinext/**": true,
+    "**/dist/**": true,
+    "**/.wrangler/**": true,
+    "**/test-results/**": true,
+    "**/playwright-report/**": true,
+    "**/coverage/**": true,
+    "**/__pycache__/**": true,
+    "**/*.pyc": true,
+    "**/apps/api/.venv/**": true,
+    "**/apps/api/.pytest_cache/**": true,
+    "**/data/**": true,
+    "**/.cache/**": true
+  },
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/apps/api/.venv": true,
+    "**/.next": true,
+    "**/.vinext": true,
+    "**/dist": true,
+    "**/package-lock.json": true
+  },
+  "python.analysis.exclude": [
+    "**/node_modules",
+    "**/apps/api/.venv",
+    "**/__pycache__"
+  ],
+  "python.defaultInterpreterPath": "${workspaceFolder}/apps/api/.venv/Scripts/python.exe"
+}

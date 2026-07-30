@@ -1,17 +1,24 @@
 from datetime import datetime
 import uuid
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
+    username: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class AccountResponse(BaseModel):
+    username: str
+    name: str
+    role: str
 
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    user: AccountResponse | None = None
 
 
 class DocumentResponse(BaseModel):
@@ -22,6 +29,18 @@ class DocumentResponse(BaseModel):
     page_count: int
     chunk_count: int
     created_at: datetime
+    progress: int = 0
+    stage: str | None = None
+    error_message: str | None = None
+
+
+class KnowledgeDocument(BaseModel):
+    """채팅 화면에 공개되는 최소 정보. 저장 경로나 내부 상태는 노출하지 않는다."""
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    original_filename: str
+    page_count: int
+    chunk_count: int
 
 
 class JobResponse(BaseModel):
