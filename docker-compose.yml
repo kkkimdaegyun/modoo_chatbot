@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ela_chatbot}
+      POSTGRES_USER: ${POSTGRES_USER:-ela}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ela} -d ${POSTGRES_DB:-ela_chatbot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  api:
+    build:
+      context: ./apps/api
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ela}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-ela_chatbot}
+      STORAGE_PATH: /app/data/uploads
+      MODEL_CACHE_PATH: /app/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - uploaded_files:/app/data/uploads
+      - huggingface_cache:/app/.cache/huggingface
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    environment:
+      NEXT_PUBLIC_BACKEND_URL: http://localhost:8000
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  uploaded_files:
+  huggingface_cache:
