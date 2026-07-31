@@ -3,14 +3,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, Bot, CheckCircle2, CircleAlert, FileText, LoaderCircle, LogOut,
-  MessageCircle, RefreshCw, ShieldCheck, Trash2, UploadCloud, UserRound,
+  Activity, ArrowDown, ArrowUp, Bot, CheckCircle2, CircleAlert, FileText, Info, LoaderCircle, LogOut,
+  MessageCircle, Plus, RefreshCw, Save, ShieldCheck, Trash2, UploadCloud, UserRound,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Account, ApiError, apiFetch, apiBase, AuthResult, DocumentItem, SystemStatus } from "../../lib/api";
+import {
+  Account, ApiError, apiFetch, apiBase, AuthResult, ChatbotSettings, DocumentItem, SuggestionItem, SystemStatus,
+} from "../../lib/api";
+import { ACCOUNT_KEY, TOKEN_KEY, clearSession } from "../../lib/admin-session";
 
 const loginSchema = z.object({
   username: z.string().min(1, "아이디를 입력해 주세요."),
@@ -18,12 +21,12 @@ const loginSchema = z.object({
 });
 type LoginForm = z.infer<typeof loginSchema>;
 
-const TOKEN_KEY = "ela_admin_token";
-const ACCOUNT_KEY = "ela_admin_account";
 const ACCEPT_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".csv", ".xlsx", ".json"];
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+const MAX_SUGGESTIONS = 9;
 
 type UploadProgress = { index: number; total: number; name: string; percent: number };
+type Tab = "documents" | "welcome";
 
 /**
  * fetch 는 업로드 진행률을 알려주지 않아서 이 요청만 XMLHttpRequest 로 보낸다.
@@ -77,13 +80,14 @@ function rejectReason(file: File): string | null {
 }
 
 function Brand() {
-  return <Link className="brand" href="/"><span className="brand-mark"><MessageCircle size={18} /></span><span>ELA Chatbot</span></Link>;
+  return <Link className="brand" href="/admin"><span className="brand-mark"><MessageCircle size={18} /></span><span>ELA Chatbot</span></Link>;
 }
 
 export default function AdminPage() {
   const [token, setToken] = useState("");
   const [account, setAccount] = useState<Account | null>(null);
   const [loginError, setLoginError] = useState("");
+  const [tab, setTab] = useState<Tab>("documents");
   const [dragging, setDragging] = useState(false);
   const [uploadLabel, setUploadLabel] = useState("");
   const [uploadError, setUploadError] = useState("");
@@ -117,8 +121,7 @@ export default function AdminPage() {
     // 서버 재시작 같은 일시적 통신 오류로 로그인 화면으로 튕기면 작업 중이던 내용을 잃는다.
     if (!meQuery.isError) return;
     if (!(meQuery.error instanceof ApiError) || meQuery.error.status !== 401) return;
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(ACCOUNT_KEY);
+    clearSession();
     setToken("");
     setAccount(null);
     setLoginError("세션이 만료되었습니다. 다시 로그인해 주세요.");
@@ -202,10 +205,8 @@ export default function AdminPage() {
     await queryClient.invalidateQueries({ queryKey: ["documents"] });
   }
 
-
   function logout() {
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(ACCOUNT_KEY);
+    clearSession();
     setToken("");
     setAccount(null);
     queryClient.clear();
@@ -251,22 +252,35 @@ export default function AdminPage() {
   const totalPages = documents.reduce((sum, item) => sum + item.page_count, 0);
 
   return (
-    <main className="app-shell">
-      <section className="app-main admin-solo">
-        <header className="app-topbar">
-          <Brand />
-          <div className="topbar-actions">
-            <span className="status-pill live"><i className="status-dot" />시스템 운영 중</span>
-            <span className="account-pill" title="로그인한 계정"><UserRound size={13} />{account.name || account.username}</span>
-            <Link className="button button-secondary button-compact" href="/"><Bot size={15} /> 챗봇 열기</Link>
-            <button className="button button-secondary button-compact" onClick={logout}><LogOut size={14} /> 로그아웃</button>
+    <main className="admin-page">
+      <header className="app-topbar">
+        <Brand />
+        {/* 고객 화면에서 뺀 위젯 안내·서비스 소개는 관리자만 여기에서 연다. */}
+        <nav className="admin-nav" aria-label="관리자 메뉴">
+          <Link href="/"><Bot size={14} />챗봇 열기</Link>
+          <Link href="/widget"><MessageCircle size={14} />위젯·연동 안내</Link>
+          <Link href="/landing"><Info size={14} />서비스 소개</Link>
+        </nav>
+        <div className="topbar-actions">
+          <span className="status-pill live"><i className="status-dot" />시스템 운영 중</span>
+          <span className="account-pill" title="로그인한 계정"><UserRound size={13} />{account.name || account.username}</span>
+          <button className="button button-secondary button-compact" onClick={logout}><LogOut size={14} /> 로그아웃</button>
+        </div>
+      </header>
+      <div className="admin-content">
+        <div className="admin-heading">
+          <div>
+            <h2>{tab === "documents" ? "문서 관리" : "시작 화면 구성"}</h2>
+            <p>{tab === "documents" ? "업로드한 문서의 분석 상태를 확인하고 관리합니다." : "고객이 처음 보는 문구와 예시 질문 카드를 직접 정합니다."}</p>
           </div>
-        </header>
-        <div className="admin-content">
-          <div className="admin-heading">
-            <div><h2>문서 관리</h2><p>업로드한 문서의 분석 상태를 확인하고 관리합니다.</p></div>
+          <div className="admin-tabs" role="tablist">
+            <button role="tab" aria-selected={tab === "documents"} className={tab === "documents" ? "active" : ""} onClick={() => setTab("documents")}><FileText size={14} /> 문서 관리</button>
+            <button role="tab" aria-selected={tab === "welcome"} className={tab === "welcome" ? "active" : ""} onClick={() => setTab("welcome")}><MessageCircle size={14} /> 시작 화면</button>
           </div>
+        </div>
 
+        {tab === "documents" ? (
+          <>
             <div className="stats-grid">
               <div className="stat-card"><span>연결 문서</span><strong>{documents.length}</strong><small>{readyDocs}개 답변 가능</small></div>
               <div className="stat-card"><span>분석된 문단</span><strong>{totalChunks.toLocaleString()}</strong><small>검색 가능한 단위</small></div>
@@ -323,9 +337,197 @@ export default function AdminPage() {
                 {uploadError && <div className="form-error upload-error" role="alert">{uploadError}</div>}
               </div>
             </div>
-        </div>
-      </section>
+          </>
+        ) : (
+          <WelcomeEditor authHeaders={authHeaders} documentNames={documents.filter((item) => item.status === "ready").map((item) => item.original_filename)} />
+        )}
+      </div>
     </main>
+  );
+}
+
+/**
+ * 채팅 첫 화면에 뜨는 제목·안내문과 예시 질문 카드를 편집한다.
+ * PUT /api/settings 는 보낸 값으로 전체를 덮어쓰므로 검색 설정까지 함께 실어 보낸다.
+ */
+function WelcomeEditor({ authHeaders, documentNames }: { authHeaders: Record<string, string>; documentNames: string[] }) {
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState<ChatbotSettings | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [saveError, setSaveError] = useState("");
+
+  const settingsQuery = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => apiFetch<ChatbotSettings>("/api/settings", { headers: authHeaders }),
+  });
+  useEffect(() => {
+    if (settingsQuery.data && !draft) setDraft(settingsQuery.data);
+  }, [settingsQuery.data, draft]);
+
+  if (settingsQuery.isError) {
+    return <div className="form-error">설정을 불러오지 못했습니다. 백엔드 상태를 확인해 주세요.</div>;
+  }
+  if (!draft) {
+    return <div className="panel-empty"><LoaderCircle className="loading-ring" size={18} /><span>설정을 불러오는 중</span></div>;
+  }
+
+  const suggestions = draft.suggestions;
+
+  function patch(next: Partial<ChatbotSettings>) {
+    setSaveState("idle");
+    setDraft((current) => (current ? { ...current, ...next } : current));
+  }
+
+  function patchSuggestion(index: number, next: Partial<SuggestionItem>) {
+    patch({ suggestions: suggestions.map((item, i) => (i === index ? { ...item, ...next } : item)) });
+  }
+
+  function move(index: number, delta: number) {
+    const target = index + delta;
+    if (target < 0 || target >= suggestions.length) return;
+    const copy = [...suggestions];
+    [copy[index], copy[target]] = [copy[target], copy[index]];
+    patch({ suggestions: copy });
+  }
+
+  async function save() {
+    if (!draft) return;
+    setSaveError("");
+    setSaveState("saving");
+    // 질문이 비어 있는 카드는 저장 대상이 아니다. 서버도 같은 기준으로 걸러낸다.
+    const cleaned = suggestions
+      .map((item) => ({ question: item.question.trim(), hint: item.hint.trim() }))
+      .filter((item) => item.question.length >= 2);
+    try {
+      const saved = await apiFetch<ChatbotSettings>("/api/settings", {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({ ...draft, suggestions: cleaned }),
+      });
+      setDraft(saved);
+      setSaveState("saved");
+      // 채팅 화면이 열려 있으면 다음 조회에서 새 문구를 받도록 캐시를 비운다.
+      await queryClient.invalidateQueries({ queryKey: ["settings"] });
+      await queryClient.invalidateQueries({ queryKey: ["chat-intro"] });
+    } catch (error) {
+      setSaveState("idle");
+      setSaveError(error instanceof Error ? error.message : "저장에 실패했습니다.");
+    }
+  }
+
+  return (
+    <div className="welcome-editor">
+      <div className="admin-card">
+        <div className="admin-card-head"><h3>첫 화면 문구</h3></div>
+        <div className="field-row">
+          <div className="field">
+            <label htmlFor="chat-title">상단 제목</label>
+            <input id="chat-title" placeholder="고객상담 어시스턴트" value={draft.chat_title || ""} onChange={(event) => patch({ chat_title: event.target.value })} />
+          </div>
+          <div className="field">
+            <label htmlFor="welcome-heading">환영 문구</label>
+            <input id="welcome-heading" placeholder="무엇을 도와드릴까요?" value={draft.welcome_heading || ""} onChange={(event) => patch({ welcome_heading: event.target.value })} />
+          </div>
+        </div>
+        <div className="field">
+          <label htmlFor="welcome-message">환영 문구 아래 설명</label>
+          <input id="welcome-message" placeholder="안내 자료를 확인해서 정확한 내용으로 답변해 드립니다." value={draft.welcome_message || ""} onChange={(event) => patch({ welcome_message: event.target.value })} />
+        </div>
+        <label className="check-row">
+          <input type="checkbox" checked={draft.show_documents} onChange={(event) => patch({ show_documents: event.target.checked })} />
+          <span>
+            <strong>학습한 문서 목록을 첫 화면에 표시 <em className="off-badge">기본 꺼짐</em></strong>
+            <small>
+              켜면 <strong>업로드한 파일명이 고객에게 그대로 보입니다</strong>
+              (예: 개인정보_처리방침.pdf). 내부 문서 구성이 드러나므로 꼭 필요할 때만 켜세요.
+            </small>
+          </span>
+        </label>
+        <small className="field-note">비워 두면 기본 문구가 그대로 쓰입니다.</small>
+      </div>
+
+      <div className="admin-card">
+        <div className="admin-card-head">
+          <h3>예시 질문 카드 <em>{suggestions.length}/{MAX_SUGGESTIONS}</em></h3>
+          <button
+            className="button button-secondary button-compact"
+            disabled={suggestions.length >= MAX_SUGGESTIONS}
+            onClick={() => patch({ suggestions: [...suggestions, { question: "", hint: "" }] })}
+          >
+            <Plus size={14} /> 카드 추가
+          </button>
+        </div>
+        <p className="card-help">
+          고객이 첫 화면에서 누르면 그대로 질문으로 들어갑니다. 부연 설명은 고객이 읽는 문구이니
+          <strong> 파일명 대신 &quot;환불 정책 기준&quot;처럼 사람이 읽는 말</strong>로 적어 주세요.
+        </p>
+        <div className="suggestion-editor">
+          {suggestions.map((item, index) => (
+            <div className="suggestion-row" key={index}>
+              <span className="suggestion-index">{index + 1}</span>
+              <div className="suggestion-inputs">
+                <input
+                  aria-label={`${index + 1}번 예시 질문`}
+                  placeholder="예) 환불은 언제까지 신청할 수 있나요?"
+                  value={item.question}
+                  onChange={(event) => patchSuggestion(index, { question: event.target.value })}
+                />
+                {/* 업로드된 파일명을 자동완성으로 띄우면 고객 화면에 파일명이 그대로 나가게 된다. */}
+                <input
+                  aria-label={`${index + 1}번 부연 설명`}
+                  placeholder="부연 설명 · 선택 (예: 환불 정책 기준)"
+                  value={item.hint}
+                  onChange={(event) => patchSuggestion(index, { hint: event.target.value })}
+                />
+              </div>
+              <div className="table-actions">
+                <button className="icon-button" aria-label="위로 이동" disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp size={13} /></button>
+                <button className="icon-button" aria-label="아래로 이동" disabled={index === suggestions.length - 1} onClick={() => move(index, 1)}><ArrowDown size={13} /></button>
+                <button className="icon-button" aria-label="카드 삭제" onClick={() => patch({ suggestions: suggestions.filter((_, i) => i !== index) })}><Trash2 size={13} /></button>
+              </div>
+            </div>
+          ))}
+          {!suggestions.length && (
+            <div className="panel-empty">
+              <MessageCircle size={18} />
+              <span>카드가 없으면 첫 화면에 예시 질문이 보이지 않습니다. &quot;카드 추가&quot;로 시작하세요.</span>
+            </div>
+          )}
+        </div>
+        {saveError && <div className="form-error" role="alert">{saveError}</div>}
+        <div className="editor-actions">
+          {saveState === "saved" && <span className="save-note"><CheckCircle2 size={14} /> 저장했습니다. 채팅 화면을 새로 고치면 바로 보입니다.</span>}
+          <button className="button button-primary" disabled={saveState === "saving"} onClick={() => void save()}>
+            {saveState === "saving" ? <LoaderCircle className="loading-ring" size={16} /> : <Save size={16} />} 저장
+          </button>
+        </div>
+      </div>
+
+      <div className="admin-card welcome-preview">
+        <div className="admin-card-head"><h3>고객 화면 미리보기</h3></div>
+        <div className="preview-frame">
+          <div className="preview-topbar">{draft.chat_title?.trim() || "고객상담 어시스턴트"}</div>
+          <div className="preview-body">
+            <span className="big-bot"><Bot size={22} /></span>
+            <h4>{draft.welcome_heading?.trim() || "무엇을 도와드릴까요?"}</h4>
+            <p>{draft.welcome_message?.trim() || "안내 자료를 확인해서 정확한 내용으로 답변해 드립니다."}</p>
+            <div className="preview-suggestions">
+              {suggestions.filter((item) => item.question.trim()).map((item, index) => (
+                <span key={index}>
+                  <strong>{item.question}</strong>
+                  {item.hint && <small>{item.hint}</small>}
+                </span>
+              ))}
+            </div>
+            {draft.show_documents && documentNames.length > 0 && (
+              <div className="preview-docs">
+                {documentNames.map((name) => <span key={name}><FileText size={11} />{name}</span>)}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

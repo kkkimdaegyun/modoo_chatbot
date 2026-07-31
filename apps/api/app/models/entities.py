@@ -41,6 +41,15 @@ class ChatbotSetting(Base, TimestampMixin):
     final_context_top_k: Mapped[int] = mapped_column(Integer, default=7)
     max_context_tokens: Mapped[int] = mapped_column(Integer, default=10_000)
     qa_priority_boost: Mapped[float] = mapped_column(default=1.15)
+    # 채팅 첫 화면에 보이는 문구와 예시 질문 카드. 관리자 페이지에서 고객사가 직접 채운다.
+    chat_title: Mapped[str | None] = mapped_column(String(120))
+    welcome_heading: Mapped[str | None] = mapped_column(String(200))
+    welcome_message: Mapped[str | None] = mapped_column(Text)
+    # [{"question": "...", "hint": "환불 정책 기준"}] 형태. 순서가 화면 순서다.
+    suggestions: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    # 학습한 문서 목록을 첫 화면에 노출할지. 파일명이 그대로 보여 내부 문서 구성이 드러나므로
+    # 기본은 꺼 둔다. 고객사가 "무엇을 학습했는지"를 알리고 싶을 때만 관리자가 켠다.
+    show_documents: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
 class Document(Base, TimestampMixin):

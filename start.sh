@@ -22,11 +22,35 @@ fi
 echo "Compose command: ${COMPOSE[*]}"
 echo "Compose project: ${COMPOSE_PROJECT_NAME:-$(grep -s '^COMPOSE_PROJECT_NAME=' .env | cut -d= -f2- | tr -d '\r')}"
 
+# .env 가 없으면 compose 가 곧바로 실패한다(env_file 지정). clone 직후가 이 상태다.
+if [ ! -f .env ]; then
+  if [ -f .env.example ]; then cp .env.example .env; else echo "오류: .env 도 .env.example 도 없습니다." >&2; exit 1; fi
+  cat >&2 <<'GUIDE'
+
+[중지] .env 를 새로 만들었습니다. 아래 항목을 채운 뒤 다시 실행하세요.
+
+  COMPOSE_PROJECT_NAME   고객사마다 다른 이름 (예: modoo-a / modoo-b)
+  FRONTEND_PORT          고객사마다 다른 포트 (예: 7128 / 7228)
+  API_PORT               고객사마다 다른 포트 (예: 7127 / 7227)
+  POSTGRES_PORT          고객사마다 다른 포트 (예: 5432 / 5532)
+  GEMINI_API_KEY         비어 있으면 답변이 생성되지 않습니다
+  POSTGRES_PASSWORD      change-me 를 그대로 두지 마세요
+  JWT_SECRET             길고 무작위인 값으로, 고객사마다 다르게
+  NEXT_PUBLIC_BACKEND_URL 도메인으로 서비스할 때 (예: https://a.example.com)
+
+GUIDE
+  exit 1
+fi
+
 # 계정 파일이 없으면 컴포즈가 같은 이름의 디렉터리를 만들어 버려서 로그인이 통째로 막힌다.
-# 예시 파일을 복사해 항상 실제 파일이 있도록 보장한다.
 if [ ! -f accounts.json ]; then
-  cp accounts.example.json accounts.json
-  echo "[init] accounts.json 을 새로 만들었습니다. 고객사 계정을 이 파일에서 관리하세요."
+  if [ -f accounts.example.json ]; then
+    cp accounts.example.json accounts.json
+  else
+    # 예시 파일이 없어도 배포가 멈추지 않도록 최소 계정을 만들어 둔다.
+    printf '{\n  "accounts": [\n    { "company": "관리자", "username": "admin", "password": "change-me-now", "role": "admin" }\n  ]\n}\n' > accounts.json
+  fi
+  echo "[init] accounts.json 을 새로 만들었습니다. 고객사 계정과 비밀번호를 반드시 바꾸세요."
 fi
 
 if command -v python3 >/dev/null 2>&1; then

@@ -16,10 +16,12 @@
 ```text
 .
 ├─ app/                         # Next.js App Router 프론트엔드
-│  ├─ page.tsx                  # 랜딩
-│  ├─ app/page.tsx              # 실제 스트리밍 채팅
-│  ├─ admin/page.tsx            # 문서/QA/검색설정/디버그
-│  └─ widget/page.tsx           # 임베드 위젯 및 설치 코드
+│  ├─ page.tsx                  # 고객이 보는 스트리밍 채팅 (좌우 패널 없음)
+│  ├─ admin/page.tsx            # 문서 관리 + 시작 화면(예시 질문) 편집 · 주소로만 접근
+│  ├─ widget/page.tsx           # 위젯 설치 코드와 연동/API 안내 (관리자 전용)
+│  └─ landing/page.tsx          # 서비스 소개 (관리자 전용)
+├─ public/widget.js             # 고객사 웹사이트에 붙이는 임베드 스크립트
+├─ deploy/                      # nginx 설정, 서브패스·SSL 배포 안내
 ├─ apps/api/
 │  ├─ app/api/                  # FastAPI 라우터
 │  ├─ app/core/                 # 환경설정, 보안, 로깅
@@ -58,14 +60,33 @@ bash start.sh
 접속 주소:
 
 - 채팅(기본 화면): http://localhost:7128
-- 관리자: http://localhost:7128/admin
-- 서비스 소개: http://localhost:7128/landing
-- 위젯: http://localhost:7128/widget
+- 관리자: http://localhost:7128/admin ← **화면에 링크가 없습니다. 주소로만 들어갑니다.**
+- 위젯·연동 안내: http://localhost:7128/widget (관리자 로그인 필요)
+- 서비스 소개: http://localhost:7128/landing (관리자 로그인 필요)
 - API: http://localhost:7127
 - Swagger: http://localhost:7127/docs
 - Health: http://localhost:7127/health
 
 호스트 포트가 이미 사용 중이면 `.env`의 `FRONTEND_PORT`, `API_PORT`, `POSTGRES_PORT`를 바꾸세요. 프론트엔드 포트를 바꿀 때는 `FRONTEND_URL`과 `CORS_ORIGINS`도 같이 맞춰야 브라우저 요청이 CORS에서 막히지 않습니다.
+
+### 화면 구성
+
+고객이 보는 채팅 화면에는 사이드바도 참고문서 패널도 없습니다. 상단 제목·대화·입력창 세 층뿐이고,
+답변의 근거는 답변 아래 "참고한 문서 N개"를 펼치면 문서명·페이지·원문 일부까지 확인할 수 있습니다.
+
+첫 화면의 제목·안내문과 예시 질문 카드는 **관리자 페이지 &gt; 시작 화면** 탭에서 직접 편집합니다.
+카드마다 부연 설명을 달 수 있는데, 고객이 읽는 문구이므로 파일명이 아니라 "환불 정책 기준"처럼
+사람이 읽는 말로 적습니다.
+
+학습한 문서 목록을 첫 화면에 노출하는 설정(`show_documents`)은 **기본이 꺼짐**입니다. 켜면
+업로드한 파일명이 고객에게 그대로 보여(`개인정보_처리방침.pdf` 등) 내부 문서 구성이 드러납니다.
+고객이 얻는 정보도 없어서, 학습 범위를 알리고 싶은 고객사만 관리자 페이지에서 켜도록 했습니다.
+
+### 도메인 서브패스로 서비스할 때
+
+`https://helpcenter.example.com/leehk` 처럼 한 도메인 아래에 고객사를 여러 개 올리는 구성은
+[deploy/README.md](deploy/README.md)에 정리해 두었습니다. nginx 설정, 인증서 설치와 검증,
+열어야 하는 포트, 고객사별 `.env` 예시가 들어 있습니다.
 
 ### 고객사 계정 추가
 
@@ -146,6 +167,8 @@ API Key가 없을 때 문서 업로드와 검색은 계속 사용할 수 있고 
 - `PUT|DELETE /api/qa/{id}`
 - `POST /api/qa/import`
 - `GET|PUT /api/settings`
+- `GET /api/chat-intro` (인증 없음 · 첫 화면 문구와 예시 질문)
+- `GET /api/knowledge/documents` (관리자 · 파일명이 드러나므로 인증 필요)
 - `POST /api/chat`
 - `POST /api/chat/stream`
 - `GET|DELETE /api/conversations`

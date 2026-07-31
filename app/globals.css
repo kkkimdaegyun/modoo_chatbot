@@ -190,26 +190,20 @@ footer { padding: 36px 0; border-top: 1px solid #e7eaf0; }
 /* App shell */
 /* 화면 높이에 딱 맞추고 스크롤은 안쪽 영역이 각자 처리한다.
    이렇게 하지 않으면 대화가 길어질 때 페이지가 통째로 늘어나 입력창이 화면 밖으로 밀린다. */
-.app-shell { height: 100vh; background: #f5f7fb; display: grid; grid-template-columns: 260px 1fr; }
-@supports (height: 100dvh) { .app-shell { height: 100dvh; } }
-.app-sidebar { background: #0e1b34; color: white; padding: 24px 18px; display: flex; flex-direction: column; }
-.app-sidebar .brand { margin: 2px 8px 28px; }
-.sidebar-label { color: #72809a; font-size: 10px; font-weight: 800; letter-spacing: .08em; padding: 0 12px; margin: 18px 0 8px; }
-.sidebar-nav { display: grid; gap: 5px; }
-.sidebar-nav a, .sidebar-nav button { width: 100%; display: flex; align-items: center; gap: 11px; padding: 11px 12px; color: #aab4c7; background: transparent; border: 0; border-radius: 9px; font-size: 13px; text-align: left; transition: .16s ease; }
-.sidebar-nav .active, .sidebar-nav a:hover, .sidebar-nav button:hover { background: #1b2e52; color: white; }
-.sidebar-bottom { margin-top: auto; border-top: 1px solid #283752; padding-top: 18px; }
-.workspace-pill { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px; background: #172946; }
-.workspace-avatar { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; background: var(--blue); font-size: 11px; font-weight: 800; }
-.workspace-pill div { min-width: 0; display: flex; flex-direction: column; font-size: 11px; }
-.workspace-pill span { color: #8794aa; margin-top: 3px; }
-.app-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-/* 사이드바 없이 관리자 화면만 쓰는 경우 */
+/* 고객이 보는 채팅 화면에는 사이드바도 참고문서 패널도 없다. 헤더·대화·입력창 세 층뿐이다. */
+.chat-page { height: 100vh; background: white; display: flex; flex-direction: column; }
+@supports (height: 100dvh) { .chat-page { height: 100dvh; } }
 /* 관리자 화면은 페이지 전체가 스크롤되지 않고, 남는 세로 공간을 문서 목록이 전부 가져간다. */
-.app-shell:has(> .admin-solo) { grid-template-columns: 1fr; height: 100vh; }
-.admin-solo { min-height: 0; }
-.admin-solo .app-topbar .brand { font-size: 15px; }
-.app-topbar { position: relative; height: 68px; padding: 0 28px; background: white; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+.admin-page { height: 100vh; background: #f5f7fb; display: flex; flex-direction: column; min-height: 0; }
+@supports (height: 100dvh) { .admin-page { height: 100dvh; } }
+.admin-page .app-topbar .brand { font-size: 15px; }
+/* 관리자 상단 메뉴. 고객 화면에서 뺀 위젯 안내·서비스 소개가 여기로 왔다. */
+.admin-nav { display: flex; align-items: center; gap: 4px; margin-left: 22px; margin-right: auto; }
+.admin-nav a { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 11px; border-radius: 9px; color: #5b6880; font-size: 12.5px; font-weight: 650; transition: .16s ease; }
+.admin-nav a:hover { color: var(--blue); background: var(--blue-soft); }
+.admin-nav svg { color: #97a3b6; }
+.admin-nav a:hover svg { color: var(--blue); }
+.app-topbar { position: relative; flex: none; height: 68px; padding: 0 28px; background: white; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
 .app-topbar h1 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
 .topbar-actions { display: inline-flex; align-items: center; gap: 10px; }
 .button-compact { height: 34px; padding: 0 12px; border-radius: 9px; font-size: 12.5px; }
@@ -218,9 +212,9 @@ footer { padding: 36px 0; border-top: 1px solid #e7eaf0; }
 .account-pill svg { flex: none; color: #93a0b5; }
 .status-pill { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #bde8d0; border-radius: 999px; padding: 6px 11px; color: #158252; background: #f2fcf7; font-size: 11px; font-weight: 700; transition: .2s ease; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #27b873; }
-/* 사이드바(260px)를 뺀 대화 영역이 아니라 화면 전체 기준 정중앙에 놓는다.
-   top 34px = 헤더 높이(68px)의 절반. 색: 초록(대기) → 파랑(작업 중) → 빨강(연결 문제) */
-.app-topbar > .status-pill { position: fixed; left: 50%; top: 34px; transform: translate(-50%, -50%); z-index: 5; padding: 5px 11px; font-size: 10.5px; }
+/* 헤더 정중앙에 놓는다. top 34px = 헤더 높이(68px)의 절반.
+   색: 초록(대기) → 파랑(작업 중) → 빨강(연결 문제) */
+.chat-page .app-topbar > .status-pill { position: fixed; left: 50%; top: 34px; transform: translate(-50%, -50%); z-index: 5; padding: 5px 11px; font-size: 10.5px; }
 .status-pill.busy { border-color: #bcd3ff; color: var(--blue); background: var(--blue-soft); }
 .status-pill.busy .status-dot { background: var(--blue); }
 .status-pill.error { border-color: #ffd1ce; color: #c94f48; background: #fff4f3; }
@@ -232,40 +226,51 @@ footer { padding: 36px 0; border-top: 1px solid #e7eaf0; }
 }
 
 /* Chat */
-/* 첫 화면 8:2 → 답변이 나오면 7:3. --chat-ratio 는 드래그 핸들이 인라인으로 갱신한다. */
-.chat-layout {
-  flex: 1; min-height: 0; display: grid;
-  grid-template-columns: minmax(0, calc(var(--chat-ratio, 80) * 1%)) 7px minmax(0, 1fr);
-  transition: grid-template-columns .28s ease;
-}
-/* 끄는 중에는 손가락을 따라 즉시 움직여야 하므로 전환 효과를 끈다. */
-body.resizing .chat-layout { transition: none; }
-.chat-resizer { position: relative; cursor: col-resize; background: transparent; touch-action: none; }
-.chat-resizer::before { content: ""; position: absolute; inset: 0 -4px; }
-.chat-resizer::after {
-  content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  width: 3px; height: 30px; border-radius: 999px; background: #cbd4e2; transition: .16s ease;
-}
-.chat-resizer:hover::after, .chat-resizer:focus-visible::after, .chat-resizer.dragging::after { background: var(--blue); height: 54px; }
-body.resizing { cursor: col-resize; user-select: none; }
-.chat-column { background: white; display: flex; flex-direction: column; min-height: 0; }
+.chat-column { flex: 1; min-height: 0; background: white; display: flex; flex-direction: column; }
 .chat-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 42px max(28px, calc((100% - 760px) / 2)); }
 .chat-welcome { text-align: center; padding: 34px 0 42px; }
 .big-bot { width: 54px; height: 54px; margin: 0 auto 15px; border-radius: 17px; background: var(--blue); color: white; display: grid; place-items: center; box-shadow: 0 12px 28px rgba(40,100,240,.23); }
 .chat-welcome h2 { font-size: 25px; margin: 0 0 8px; letter-spacing: -.04em; }
 .chat-welcome p { margin: 0; color: #758196; font-size: 13px; }
 .suggestions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 25px; }
-.suggestion { min-height: 72px; padding: 12px; text-align: left; background: white; border: 1px solid #dfe4ec; border-radius: 11px; color: #455269; font-size: 12px; line-height: 1.45; transition: .16s ease; }
+.suggestion { position: relative; min-height: 76px; padding: 13px 26px 13px 13px; text-align: left; background: white; border: 1px solid #dfe4ec; border-radius: 11px; color: #455269; font-size: 12px; line-height: 1.45; display: flex; flex-direction: column; gap: 6px; transition: .16s ease; }
 .suggestion:hover { border-color: #9dbbff; color: var(--blue); background: #fbfcff; box-shadow: 0 8px 20px rgba(19,39,75,.07); transform: translateY(-1px); }
 .suggestion:active { transform: translateY(0); }
+.suggestion > svg { position: absolute; right: 9px; top: 14px; color: #b4bfd0; }
+.suggestion:hover > svg { color: var(--blue); }
+.suggestion-question { font-weight: 650; }
+/* 이 질문의 근거가 되는 문서명. 관리자가 비워 두면 아예 그리지 않는다. */
+.suggestion-hint { margin-top: auto; color: #93a0b5; font-size: 10px; font-weight: 600; }
+.suggestion:hover .suggestion-hint { color: #7d97c8; }
+
+/* 어떤 문서를 학습했는지 첫 화면에서 알려 준다. 우측 패널을 없애면서 이 줄이 그 역할을 한다. */
+.welcome-docs { margin-top: 26px; padding-top: 20px; border-top: 1px solid #edf0f5; }
+.welcome-docs-head { display: block; color: #8b96a8; font-size: 10.5px; font-weight: 700; margin-bottom: 10px; }
+.welcome-doc-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.welcome-doc-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 230px; padding: 5px 10px; border: 1px solid #e4e9f0; border-radius: 999px; background: #f8fafc; color: #6a778d; font-size: 10px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.welcome-doc-chip svg { flex: none; color: #9db4e8; }
 .conversation { display: flex; flex-direction: column; gap: 22px; }
 .chat-message { display: flex; gap: 11px; align-items: flex-start; }
 .chat-message.user { flex-direction: row-reverse; }
 .chat-bubble { max-width: 76%; border-radius: 14px; padding: 14px 16px; background: #f0f3f7; color: #27364e; font-size: 13px; line-height: 1.7; }
 .chat-message.user .chat-bubble { background: var(--blue); color: white; border-bottom-right-radius: 4px; }
 .chat-message.assistant .chat-bubble { border-bottom-left-radius: 4px; }
-.source-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
-.source-chip { border: 1px solid #c6d6fb; background: white; color: var(--blue); border-radius: 999px; padding: 5px 8px; font-size: 10px; }
+/* 답변 아래 근거. 우측 패널을 없애고 이 자리로 옮겼다. 접으면 칩, 펼치면 원문 일부까지. */
+.answer-sources { margin-top: 12px; padding-top: 11px; border-top: 1px solid #dfe4ec; }
+.answer-sources > button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px 4px 7px; border: 1px solid #d5dce7; border-radius: 999px; background: white; color: #5f6d84; font-size: 10.5px; font-weight: 700; transition: .16s ease; }
+.answer-sources > button:hover { border-color: #b9cdf7; color: var(--blue); background: var(--blue-soft); }
+.answer-sources > button svg:last-child { transition: transform .18s ease; }
+.answer-sources.open > button svg:last-child { transform: rotate(180deg); }
+.answer-sources.open > button { border-color: #b9cdf7; color: var(--blue); background: var(--blue-soft); }
+.source-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.source-chip { max-width: 100%; border: 1px solid #c6d6fb; background: white; color: var(--blue); border-radius: 999px; padding: 5px 8px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.answer-source-list { display: grid; gap: 8px; margin-top: 10px; }
+.answer-source-list article { border: 1px solid #dfe4ec; border-radius: 10px; background: white; padding: 11px 12px; }
+.answer-source-list header { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.answer-source-list em { flex: none; width: 17px; height: 17px; display: grid; place-items: center; border-radius: 5px; background: var(--blue-soft); color: var(--blue); font-size: 9.5px; font-style: normal; font-weight: 800; }
+.answer-source-list strong { font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.answer-source-list header span { flex: none; color: #93a0b5; font-size: 9.5px; }
+.answer-source-list p { margin: 9px 0 0; padding-top: 8px; border-top: 1px solid #edf0f4; color: #66758a; font-size: 10.5px; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
 .chat-composer-wrap { border-top: 1px solid #e5e9ef; padding: 18px max(28px, calc((100% - 760px) / 2)) 22px; }
 .chat-composer { border: 1px solid #d8dee8; border-radius: 14px; padding: 10px 10px 10px 16px; display: flex; align-items: flex-end; gap: 10px; background: white; box-shadow: 0 8px 22px rgba(19,39,75,.06); }
 .chat-composer textarea { border: 0; outline: 0; flex: 1; resize: none; min-height: 40px; max-height: 130px; padding: 10px 0; font-size: 13px; color: var(--ink); }
@@ -274,34 +279,12 @@ body.resizing { cursor: col-resize; user-select: none; }
 .send-button:active { transform: scale(.95); }
 .send-button:disabled { background: #a7b1c0; cursor: default; box-shadow: none; }
 .composer-hint { display: block; text-align: center; color: #98a2b3; font-size: 10px; margin-top: 9px; }
-.context-panel { padding: 25px 20px; min-height: 0; overflow-y: auto; border-left: 1px solid var(--line); background: #f9fafc; }
-.context-panel h2 { margin: 0 0 6px; font-size: 14px; }
-.context-panel > p { margin: 0 0 20px; color: #8994a6; font-size: 11px; }
-/* 문서 연결 여부를 토글 스위치처럼 보여주는 상태 표시(클릭 대상은 아니다). */
-.verify-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 11px 12px; border: 1px solid #e2e7ee; border-radius: 11px; background: white; color: #9aa4b4; }
-.verify-row > div { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.verify-row strong { font-size: 11px; color: #66748a; }
-.verify-row span { font-size: 9px; }
-.verify-row.on { border-color: #bfe8d4; background: #f4fdf8; color: var(--green); }
-.verify-row.on strong { color: #17603f; }
-.verify-row.on span { color: #6c8b7c; }
-.verify-switch { flex: none; width: 34px; height: 19px; padding: 2px; border-radius: 999px; background: #d3d9e2; transition: background .18s ease; }
-.verify-switch i { display: block; width: 15px; height: 15px; border-radius: 50%; background: white; box-shadow: 0 1px 3px rgba(20,40,78,.25); transition: transform .18s ease; }
-.verify-row.on .verify-switch { background: var(--green); }
-.verify-row.on .verify-switch i { transform: translateX(15px); }
-.source-card { background: white; border: 1px solid #dfe4ec; border-radius: 12px; padding: 14px; margin-bottom: 10px; }
-.source-card-head { display: flex; gap: 9px; align-items: center; }
-.source-card-head div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.source-card-head strong { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.source-card-head span { color: #8994a6; font-size: 9px; }
-.source-card p { margin: 10px 0 0; color: #66758a; font-size: 10px; line-height: 1.55; padding-top: 9px; border-top: 1px solid #edf0f4; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
-
-/* 대화가 시작되면 가운데 정렬 여백을 풀고, 근거 패널이 생기면 좌우를 반반으로 나눈다. */
-.chat-layout.chatting .chat-scroll { padding-left: 28px; padding-right: 28px; }
-.chat-layout.chatting .chat-composer-wrap { padding-left: 28px; padding-right: 28px; }
-.chat-layout.split .context-panel { overflow-y: auto; }
-
 /* Admin */
+.admin-tabs { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 11px; background: white; }
+.admin-tabs button { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 13px; border: 0; border-radius: 8px; background: transparent; color: #66748a; font-size: 12.5px; font-weight: 700; transition: .16s ease; }
+.admin-tabs button:hover { color: var(--blue); background: var(--blue-soft); }
+.admin-tabs button.active { color: white; background: var(--blue); }
+.admin-tabs button.active:hover { background: var(--blue-dark); }
 .admin-content { padding: 22px 30px 24px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .admin-heading { display: flex; align-items: end; justify-content: space-between; margin-bottom: 16px; }
 .admin-heading h2 { margin: 0 0 5px; font-size: 21px; letter-spacing: -.04em; }
@@ -318,6 +301,48 @@ body.resizing { cursor: col-resize; user-select: none; }
 .admin-card h3 { margin: 0; font-size: 15px; }
 /* 카드 제목 옆 문서 개수 배지 */
 .admin-card h3 em { margin-left: 7px; padding: 2px 8px; border-radius: 999px; background: var(--blue-soft); color: var(--blue); font-size: 11px; font-style: normal; font-weight: 800; vertical-align: middle; }
+
+/* 시작 화면 편집기 */
+/* 편집 칸이 길어져도 관리자 화면 전체가 늘어나지 않게 이 영역만 스크롤한다. */
+.welcome-editor { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-content: start; }
+.welcome-editor > .admin-card { min-height: 0; }
+/* 문구 카드와 카드 편집기는 왼쪽 열에, 미리보기는 오른쪽에 세로로 붙는다. */
+.welcome-editor > .admin-card:nth-child(1), .welcome-editor > .admin-card:nth-child(2) { grid-column: 1; }
+.welcome-preview { grid-column: 2; grid-row: 1 / span 2; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field-note { display: block; margin-top: 4px; color: #93a0b5; font-size: 10.5px; }
+.card-help { margin: -6px 0 14px; color: #7f8b9f; font-size: 11.5px; line-height: 1.6; }
+.check-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 4px; padding: 12px; border: 1px solid #e4e9f0; border-radius: 10px; background: #fbfcfe; cursor: pointer; }
+.check-row input { flex: none; width: 15px; height: 15px; margin-top: 1px; accent-color: var(--blue); }
+.check-row span { display: flex; flex-direction: column; gap: 3px; }
+.check-row strong { font-size: 12px; }
+.check-row small { color: #8b96a8; font-size: 10.5px; line-height: 1.55; }
+/* 켜면 고객에게 파일명이 보이는 설정이라 기본이 꺼짐인 것을 눈에 띄게 알린다. */
+.check-row .off-badge { margin-left: 5px; padding: 1px 6px; border-radius: 999px; background: #f1f3f7; color: #7c8798; font-size: 9px; font-style: normal; font-weight: 700; vertical-align: 1px; }
+.check-row small strong { color: #b26a1f; font-size: inherit; }
+.suggestion-editor { display: grid; gap: 9px; }
+.suggestion-row { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid #e4e9f0; border-radius: 10px; background: #fbfcfe; }
+.suggestion-index { flex: none; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 6px; background: var(--blue-soft); color: var(--blue); font-size: 10px; font-weight: 800; }
+.suggestion-inputs { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.suggestion-inputs input { width: 100%; border: 1px solid #dbe1ea; border-radius: 8px; padding: 8px 10px; outline: 0; font-size: 12px; background: white; }
+.suggestion-inputs input:focus { border-color: #8bafff; box-shadow: 0 0 0 3px #edf3ff; }
+.suggestion-inputs input:nth-child(2) { font-size: 11px; color: #6a778d; }
+.editor-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+.save-note { display: inline-flex; align-items: center; gap: 6px; color: var(--green); font-size: 11px; font-weight: 700; }
+/* 저장 전에 고객 화면이 어떻게 보일지 그대로 보여 준다. */
+.preview-frame { border: 1px solid #dfe4ec; border-radius: 12px; overflow: hidden; background: white; }
+.preview-topbar { height: 40px; padding: 0 14px; display: flex; align-items: center; border-bottom: 1px solid #eceff4; background: #fbfcfe; font-size: 12px; font-weight: 700; }
+.preview-body { padding: 24px 18px 26px; text-align: center; }
+.preview-body .big-bot { width: 44px; height: 44px; border-radius: 14px; margin-bottom: 12px; }
+.preview-body h4 { margin: 0 0 6px; font-size: 17px; letter-spacing: -.03em; }
+.preview-body > p { margin: 0; color: #7f8b9f; font-size: 11.5px; }
+.preview-suggestions { display: grid; gap: 7px; margin-top: 18px; text-align: left; }
+.preview-suggestions span { display: flex; flex-direction: column; gap: 4px; padding: 10px 11px; border: 1px solid #e2e7ee; border-radius: 9px; background: #fbfcff; }
+.preview-suggestions strong { font-size: 11.5px; font-weight: 650; color: #455269; }
+.preview-suggestions small { color: #97a3b6; font-size: 9.5px; }
+.preview-docs { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #eceff4; }
+.preview-docs span { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 4px 8px; border: 1px solid #e4e9f0; border-radius: 999px; background: #f8fafc; color: #6a778d; font-size: 9.5px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview-docs svg { flex: none; color: #9db4e8; }
 /* 상자 전체가 <label> 이라 어디를 눌러도 파일 선택창이 열린다. */
 .dropzone {
   position: relative; flex: 1; min-height: 240px; padding: 36px 24px; cursor: pointer;
@@ -409,9 +434,29 @@ body.resizing { cursor: col-resize; user-select: none; }
 .widget-back:hover, .widget-back:focus-visible { width: 92px; color: var(--blue); border-color: #b9cdf7; box-shadow: 0 9px 22px rgba(40,100,240,.15); }
 .widget-back:hover span, .widget-back:focus-visible span { max-width: 60px; opacity: 1; margin-left: 8px; }
 .copy-error { margin: 14px 0 0; }
-.widget-install { max-width: 650px; }
+/* 위젯 창(오른쪽 아래 고정)과 겹치지 않게 본문 폭을 제한한다. */
+.widget-install { max-width: 720px; padding-bottom: 40px; }
 .widget-install h1 { font-size: 48px; line-height: 1.15; letter-spacing: -.055em; margin: 20px 0 14px; }
 .widget-install > p { color: #758196; line-height: 1.7; }
+
+/* 연동 안내 문서 */
+.doc-block { margin-top: 30px; }
+.doc-block-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.doc-block-head strong { font-size: 16px; letter-spacing: -.02em; }
+.doc-block-head span { color: #8b96a8; font-size: 11.5px; line-height: 1.6; }
+.doc-block .code-card { margin-top: 0; }
+.doc-note { margin: 11px 0 0; color: #8b96a8; font-size: 11.5px; line-height: 1.7; }
+.doc-list { margin: 4px 0 18px; padding-left: 18px; color: #5d6a80; font-size: 12px; line-height: 1.8; }
+.doc-list strong { color: var(--ink); }
+code, .doc-list code, .doc-block-head code { padding: 1px 5px; border-radius: 5px; background: #eef1f6; color: #3c4a61; font: 11.5px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.endpoint-table { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: white; }
+.endpoint-row { display: grid; grid-template-columns: 74px 210px 1fr 56px; align-items: center; gap: 10px; padding: 11px 13px; border-bottom: 1px solid #eceff4; }
+.endpoint-row:last-child { border-bottom: 0; }
+.endpoint-method { color: var(--blue); font: 700 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.endpoint-row code { background: transparent; padding: 0; color: #27364e; font-size: 11.5px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.endpoint-row p { margin: 0; color: #7f8b9f; font-size: 11px; line-height: 1.55; }
+.endpoint-scope { justify-self: end; padding: 3px 8px; border-radius: 999px; background: #eefbf4; color: #188052; font-size: 9.5px; font-weight: 700; }
+.endpoint-scope.admin { background: #fff5ec; color: #b26a1f; }
 .code-card { margin-top: 28px; overflow: hidden; border: 1px solid #d8dee8; border-radius: 14px; background: white; box-shadow: var(--shadow); }
 .code-card pre { margin: 0; padding: 20px; overflow: auto; color: #33425b; background: #f9fafc; font: 12px/1.65 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .code-card button { width: 100%; height: 46px; border: 0; border-top: 1px solid #e2e6ec; display: flex; align-items: center; justify-content: center; gap: 7px; color: var(--blue); background: white; font-size: 12px; font-weight: 750; transition: .16s ease; }
@@ -444,21 +489,20 @@ body.resizing { cursor: col-resize; user-select: none; }
   .knowledge-preview { display: none; }
   .problem-grid, .case-grid { grid-template-columns: 1fr 1fr; }
   .feature-wide { grid-template-columns: 1fr; }
-  .app-shell { grid-template-columns: 78px 1fr; }
-  .app-sidebar { padding: 18px 12px; align-items: center; }
-  .app-sidebar .brand span:not(.brand-mark), .sidebar-label, .sidebar-nav span, .workspace-pill div { display: none; }
-  .sidebar-nav a, .sidebar-nav button { width: 48px; justify-content: center; }
-  .workspace-pill { padding: 7px; }
-  .chat-layout { grid-template-columns: 1fr; }
-  .context-panel, .chat-resizer { display: none; }
   /* 좁은 화면에서는 제목·버튼과 겹치지 않게 중앙 상태 배지를 숨긴다. */
-  .app-topbar > .status-pill { display: none; }
+  .chat-page .app-topbar > .status-pill { display: none; }
   /* 좁은 화면에서는 한 화면에 우겨넣지 않고 평소처럼 페이지를 스크롤한다. */
-  .app-shell:has(> .admin-solo) { height: auto; }
+  .admin-page { height: auto; }
   .admin-content { display: block; }
   .admin-grid { grid-template-columns: 1fr; }
   .table-scroll { overflow: visible; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
+  .admin-nav a span { display: none; }
+  .admin-nav a { padding: 0 9px; }
+  .welcome-editor { display: block; overflow: visible; }
+  .welcome-editor > .admin-card { margin-bottom: 16px; }
+  .endpoint-row { grid-template-columns: 64px 1fr 52px; }
+  .endpoint-row p { grid-column: 1 / -1; }
 }
 @media (max-width: 640px) {
   .container { width: min(100% - 28px, 1120px); }
@@ -481,11 +525,13 @@ body.resizing { cursor: col-resize; user-select: none; }
   .cta-card { padding: 36px 26px; flex-direction: column; align-items: flex-start; }
   .cta-card h2 { font-size: 27px; }
   .footer-inner { flex-direction: column; align-items: flex-start; gap: 13px; }
-  .app-shell { grid-template-columns: 1fr; }
-  .app-sidebar { display: none; }
   .app-topbar { padding: 0 18px; }
+  .admin-nav { margin-left: 10px; }
   .chat-scroll, .chat-composer-wrap { padding-left: 16px; padding-right: 16px; }
   .suggestions { grid-template-columns: 1fr; }
+  .field-row { grid-template-columns: 1fr; }
+  .suggestion-row { flex-wrap: wrap; }
+  .suggestion-inputs { flex-basis: 100%; order: 3; }
   .chat-message .chat-bubble { max-width: 88%; }
   .admin-content { padding: 20px 14px; overflow-x: auto; }
   .stats-grid { grid-template-columns: 1fr 1fr; }

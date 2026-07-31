@@ -18,7 +18,11 @@ from app.services.parsers import DocumentParser
 
 router = APIRouter(prefix="/api", tags=["documents"], dependencies=[Depends(require_admin)])
 # 채팅 화면은 로그인이 없으므로 "무엇이 임베딩됐는지"만 보여주는 공개 라우터를 따로 둔다.
-knowledge_router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
+# 파일명이 내부 문서 구성을 드러내므로 인증을 요구한다.
+# 예전에는 채팅 화면 우측 패널이 인증 없이 이 목록을 읽었지만, 그 패널을 없애면서
+# 고객 화면에서 쓰는 곳이 사라졌다. 고객에게 학습 범위를 알리고 싶을 때는
+# 관리자 페이지에서 노출을 켜고 /api/chat-intro 를 쓴다.
+knowledge_router = APIRouter(prefix="/api/knowledge", tags=["knowledge"], dependencies=[Depends(require_admin)])
 allowed_mimes = {
     "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "text/plain", "text/markdown", "text/csv", "application/csv", "application/json",

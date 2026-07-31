@@ -1,8 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import {
-  ArrowRight, Bot, Check, Clock3, FileCheck2, FileText, Headphones,
+  ArrowRight, Bot, Check, Clock3, FileCheck2, FileText, Headphones, LoaderCircle,
   MessageCircle, Moon, Search, ShieldCheck, Sparkles, UploadCloud, Users, Zap,
 } from "lucide-react";
+import { useAdminOnly } from "../../lib/admin-session";
 
 const problems = [
   [Moon, "야간·주말 문의는 그냥 쌓입니다", "업무 시간 외 문의가 다음 날로 밀리면, 구매를 고민하던 고객도 함께 떠납니다."],
@@ -20,7 +23,7 @@ const cases = [
 
 function Brand() {
   return (
-    <Link className="brand" href="/" aria-label="ELA Chatbot 채팅으로 이동" title="채팅으로 이동">
+    <Link className="brand" href="/admin" aria-label="관리자 페이지로 이동" title="관리자 페이지로 이동">
       <span className="brand-mark"><MessageCircle size={18} strokeWidth={2.4} /></span>
       <span>ELA</span><span className="brand-muted">Chatbot</span>
     </Link>
@@ -28,6 +31,12 @@ function Brand() {
 }
 
 export default function Home() {
+  // 서비스 소개는 고객이 아니라 담당자·영업용 화면이라 관리자만 본다.
+  const gate = useAdminOnly();
+  if (gate === "checking") {
+    return <main className="login-page"><div className="login-card"><h1>확인 중</h1><p>관리자 로그인 여부를 확인하고 있습니다.</p><LoaderCircle className="loading-ring" size={22} /></div></main>;
+  }
+
   return (
     <main>
       <header className="site-header">
@@ -37,8 +46,8 @@ export default function Home() {
             <a href="#features">기능</a><a href="#use-cases">활용 사례</a><a href="#how">이용 방법</a>
           </nav>
           <div className="header-actions">
-            <Link className="button button-ghost" href="/">채팅</Link>
-            <Link className="button button-ghost" href="/admin">관리자</Link>
+            <Link className="button button-ghost" href="/">챗봇 열기</Link>
+            <Link className="button button-secondary button-compact" href="/admin">관리자 페이지</Link>
           </div>
         </div>
       </header>

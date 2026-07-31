@@ -1,28 +1,27 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
 import {
-  Bot, ChevronRight, CircleAlert, CircleStop, FileText, Info, LoaderCircle,
-  MessageCircle, Plus, Send, Settings, ShieldCheck,
+  Bot, ChevronDown, ChevronRight, CircleStop, FileText, Plus, Send,
 } from "lucide-react";
 import {
-  CSSProperties, Fragment, FormEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode,
-  useEffect, useMemo, useRef, useState,
+  Fragment, FormEvent, ReactNode, useEffect, useMemo, useRef, useState,
 } from "react";
-import { apiBase, apiFetch, KnowledgeDocument, Source } from "../lib/api";
+import { apiBase, apiFetch, ChatIntro, Source } from "../lib/api";
 
 type Message = { role: "user" | "assistant"; content: string; sources?: Source[] };
 
-const suggestions = [
-  "환불은 언제까지 신청할 수 있나요?",
-  "배송은 보통 며칠 걸리나요?",
-  "주말에도 상담할 수 있나요?",
-];
-
-function Brand() {
-  return <Link className="brand" href="/"><span className="brand-mark"><MessageCircle size={18} /></span><span>ELA Chatbot</span></Link>;
-}
+/** 관리자가 예시 질문을 아직 채우지 않았거나 서버를 못 읽었을 때 쓰는 값. */
+const FALLBACK_INTRO: ChatIntro = {
+  chat_title: "고객상담 어시스턴트",
+  welcome_heading: "무엇을 도와드릴까요?",
+  welcome_message: "안내 자료를 확인해서 정확한 내용으로 답변해 드립니다.",
+  suggestions: [],
+  show_documents: false,
+  documents: [],
+  document_count: 0,
+  chunk_count: 0,
+};
 
 /** 문장이 끝나고 다음 문장이 시작되는 지점. 소수점·이메일·URL 처럼 뒤에 공백이 없는 점은 건드리지 않는다. */
 const SENTENCE_BREAK = /(?<=[.!?])\s+(?=\S)/g;
@@ -112,20 +111,6 @@ function AnswerText({ text }: { text: string }) {
   return <>{blocks}</>;
 }
 
-/** 문서가 연결돼 있으면 켜진 것처럼, 없으면 꺼진 것처럼 보이는 상태 표시용 스위치. */
-function VerifyToggle({ active }: { active: boolean }) {
-  return (
-    <div className={`verify-row${active ? " on" : ""}`}>
-      <ShieldCheck size={17} />
-      <div>
-        <strong>출처 검증 {active ? "활성화" : "비활성"}</strong>
-        <span>{active ? "참고한 문서 내용만 답변에 사용합니다." : "문서를 올리면 자동으로 켜집니다."}</span>
-      </div>
-      <span className="verify-switch" aria-hidden="true"><i /></span>
-    </div>
-  );
-}
-
 function ThinkingIndicator({ phase }: { phase: "retrieving" | "generating" }) {
   return (
     <span className="thinking" role="status">
@@ -136,14 +121,41 @@ function ThinkingIndicator({ phase }: { phase: "retrieving" | "generating" }) {
 }
 
 /**
- * 대화 영역이 차지하는 기본 비율(%). 나머지가 참고 문서 패널 몫이다.
- * 첫 화면은 8:2, 답변에 참고 문서가 붙으면 7:3으로 자동으로 넓어진다.
- * 핸들을 끌어 직접 정한 값이 있으면 그 값이 두 기본값보다 우선한다.
+ * 답변 아래에 접힌 상태로 붙는 근거 목록.
+ * 우측 패널을 없애면서 옮겨온 자리이므로, 펼치면 문서명·페이지와 원문 일부까지 그대로 보여준다.
  */
-const IDLE_RATIO = 80;
-const ANSWER_RATIO = 70;
-const RATIO_KEY = "ela_chat_ratio";
-const clampRatio = (value: number) => Math.min(85, Math.max(50, value));
+function AnswerSources({ sources }: { sources: Source[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`answer-sources${open ? " open" : ""}`}>
+      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <FileText size={13} />
+        <span>참고한 문서 {sources.length}개</span>
+        <ChevronDown size={14} />
+      </button>
+      {open ? (
+        <div className="answer-source-list">
+          {sources.map((source, index) => (
+            <article key={source.id}>
+              <header>
+                <em>{index + 1}</em>
+                <strong>{source.document_name}</strong>
+                <span>{source.page_number ? `${source.page_number}페이지` : source.section_title || (source.source_type === "qa" ? "QA" : "문서")}</span>
+              </header>
+              <p>{source.excerpt}</p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="source-chips">
+          {sources.map((source, index) => (
+            <span className="source-chip" key={source.id}>[{index + 1}] {source.document_name}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ChatView() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -151,14 +163,10 @@ export default function ChatView() {
   const [phase, setPhase] = useState<"idle" | "retrieving" | "generating" | "error">("idle");
   const [error, setError] = useState("");
   const [sources, setSources] = useState<Source[]>([]);
-  const [customRatio, setCustomRatio] = useState<number | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const layoutRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
   const busy = phase === "retrieving" || phase === "generating";
-  const ratio = customRatio ?? (sources.length ? ANSWER_RATIO : IDLE_RATIO);
 
   // 답변이 늘어나는 동안 맨 아래를 따라간다. 위로 올려 읽고 있으면 따라가지 않는다.
   useEffect(() => {
@@ -167,65 +175,12 @@ export default function ChatView() {
     area.scrollTop = area.scrollHeight;
   }, [messages]);
 
-  // 지난번에 조절해 둔 폭을 기억해서 다시 들어와도 같은 비율로 보여준다.
-  useEffect(() => {
-    const saved = Number(localStorage.getItem(RATIO_KEY));
-    if (saved) setCustomRatio(clampRatio(saved));
-  }, []);
-
-  function applyRatio(next: number) {
-    const value = clampRatio(next);
-    setCustomRatio(value);
-    localStorage.setItem(RATIO_KEY, String(Math.round(value)));
-  }
-
-  /** 직접 정한 폭을 버리고 화면 상태에 따른 기본 비율로 되돌린다. */
-  function resetRatio() {
-    setCustomRatio(null);
-    localStorage.removeItem(RATIO_KEY);
-  }
-
-  function startResize(event: ReactPointerEvent<HTMLDivElement>) {
-    event.preventDefault();
-    const layout = layoutRef.current;
-    if (!layout) return;
-    setDragging(true);
-    document.body.classList.add("resizing");
-    // 끄는 동안에는 CSS 변수만 직접 바꿔 대화 목록 전체가 다시 그려지지 않게 하고,
-    // 손을 뗄 때 한 번만 상태로 확정한다.
-    let latest = ratio;
-    const move = (moveEvent: PointerEvent) => {
-      const box = layout.getBoundingClientRect();
-      latest = clampRatio(((moveEvent.clientX - box.left) / box.width) * 100);
-      layout.style.setProperty("--chat-ratio", String(latest));
-    };
-    const stop = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", stop);
-      window.removeEventListener("pointercancel", stop);
-      document.body.classList.remove("resizing");
-      setDragging(false);
-      applyRatio(latest);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", stop);
-    window.addEventListener("pointercancel", stop);
-  }
-
-  function resizeByKey(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === "ArrowLeft") applyRatio(ratio - 2);
-    else if (event.key === "ArrowRight") applyRatio(ratio + 2);
-    else if (event.key === "Home" || event.key === "Enter") resetRatio();
-    else return;
-    event.preventDefault();
-  }
-
-  const knowledgeQuery = useQuery({
-    queryKey: ["knowledge"],
-    queryFn: () => apiFetch<KnowledgeDocument[]>("/api/knowledge/documents"),
+  // 첫 화면 문구와 예시 질문은 관리자 페이지에서 정한 값을 쓴다. 못 읽으면 기본값으로 뜬다.
+  const introQuery = useQuery({
+    queryKey: ["chat-intro"],
+    queryFn: () => apiFetch<ChatIntro>("/api/chat-intro"),
   });
-  const knowledge = knowledgeQuery.data || [];
-  const totalChunks = knowledge.reduce((sum, item) => sum + item.chunk_count, 0);
+  const intro = introQuery.data || FALLBACK_INTRO;
 
   // 상단 중앙 배지: 평소에는 점 하나와 on, 작업 중에는 무엇을 하는지 짧게 보여준다.
   const status = useMemo(() => {
@@ -234,11 +189,6 @@ export default function ChatView() {
     if (phase === "error") return { tone: "error", label: "off" };
     return { tone: "live", label: "on" };
   }, [phase]);
-
-  function reset() {
-    abortRef.current?.abort();
-    setMessages([]); setSources([]); setError(""); setPhase("idle");
-  }
 
   async function sendQuestion(question: string) {
     const text = question.trim();
@@ -316,125 +266,95 @@ export default function ChatView() {
     void sendQuestion(input);
   }
 
+  /** 사이드바를 없애면서 옮겨온 "새 대화". 대화가 있을 때만 보여 첫 화면을 어지럽히지 않는다. */
+  function reset() {
+    abortRef.current?.abort();
+    setMessages([]); setSources([]); setError(""); setPhase("idle");
+  }
+
   return (
-    <main className="app-shell">
-      <aside className="app-sidebar">
-        <Brand />
-        <span className="sidebar-label">WORKSPACE</span>
-        <nav className="sidebar-nav">
-          <button className="active" onClick={reset}><Plus size={17} /><span>새 대화</span></button>
-          <Link href="/widget"><MessageCircle size={17} /><span>위젯 미리보기</span></Link>
-          <Link href="/landing"><Info size={17} /><span>서비스 소개</span></Link>
-        </nav>
-      </aside>
-      <section className="app-main">
-        <header className="app-topbar">
-          <h1>고객상담 어시스턴트</h1>
-          <span className={`status-pill ${status.tone}`} role="status"><i className="status-dot" />{status.label}</span>
-          <div className="topbar-actions">
-            <Link className="button button-secondary button-compact" href="/admin"><Settings size={15} /> 관리자 페이지</Link>
-          </div>
-        </header>
+    <main className="chat-page">
+      <header className="app-topbar">
+        <h1>{intro.chat_title}</h1>
+        <span className={`status-pill ${status.tone}`} role="status"><i className="status-dot" />{status.label}</span>
+        <div className="topbar-actions">
+          {messages.length > 0 && (
+            <button className="button button-secondary button-compact" onClick={reset}><Plus size={15} /> 새 대화</button>
+          )}
+        </div>
+      </header>
+      <div className="chat-column">
         <div
-          ref={layoutRef}
-          className={`chat-layout${messages.length ? " chatting" : ""}${sources.length ? " split" : ""}`}
-          style={{ "--chat-ratio": ratio } as CSSProperties}
+          className="chat-scroll"
+          ref={scrollRef}
+          onScroll={(event) => {
+            const area = event.currentTarget;
+            stickToBottom.current = area.scrollHeight - area.scrollTop - area.clientHeight < 80;
+          }}
         >
-          <div className="chat-column">
-            <div
-              className="chat-scroll"
-              ref={scrollRef}
-              onScroll={(event) => {
-                const area = event.currentTarget;
-                stickToBottom.current = area.scrollHeight - area.scrollTop - area.clientHeight < 80;
-              }}
-            >
-              {messages.length === 0 ? (
-                <div className="chat-welcome">
-                  <span className="big-bot"><Bot size={26} /></span>
-                  <h2>무엇이 궁금하신가요?</h2>
-                  <p>연결된 회사 문서에서 정확한 내용을 찾아 답변해 드립니다.</p>
-                  <div className="suggestions">
-                    {suggestions.map((question) => <button className="suggestion" key={question} onClick={() => void sendQuestion(question)}>{question}<ChevronRight size={14} /></button>)}
-                  </div>
-                </div>
-              ) : (
-                <div className="conversation">
-                  {messages.map((message, index) => (
-                    <div className={`chat-message ${message.role}`} key={`${message.role}-${index}`}>
-                      <span className={`mini-avatar ${message.role === "user" ? "user-avatar" : ""}`}>{message.role === "user" ? "나" : <Bot size={13} />}</span>
-                      <div className="chat-bubble">
-                        {message.content
-                          ? <AnswerText text={message.content} />
-                          : busy && index === messages.length - 1
-                            ? <ThinkingIndicator phase={phase === "retrieving" ? "retrieving" : "generating"} />
-                            : null}
-                        {message.role === "assistant" && index === messages.length - 1 && sources.length > 0 && (
-                          <div className="source-chips">{sources.map((source, sourceIndex) => <span className="source-chip" key={source.id}>[{sourceIndex + 1}] {source.document_name}</span>)}</div>
-                        )}
-                      </div>
-                    </div>
+          {messages.length === 0 ? (
+            <div className="chat-welcome">
+              <span className="big-bot"><Bot size={26} /></span>
+              <h2>{intro.welcome_heading}</h2>
+              <p>{intro.welcome_message}</p>
+              {intro.suggestions.length > 0 && (
+                <div className="suggestions">
+                  {intro.suggestions.map((item) => (
+                    <button className="suggestion" key={item.question} onClick={() => void sendQuestion(item.question)}>
+                      <span className="suggestion-question">{item.question}</span>
+                      {item.hint && <span className="suggestion-hint">{item.hint}</span>}
+                      <ChevronRight size={14} />
+                    </button>
                   ))}
                 </div>
               )}
-              {error && <div className="form-error" role="alert">{error}</div>}
+              {intro.show_documents && intro.document_count > 0 && (
+                <div className="welcome-docs">
+                  <span className="welcome-docs-head">
+                    {intro.document_count}개 문서 · {intro.chunk_count.toLocaleString()}개 문단을 학습했습니다
+                  </span>
+                  <div className="welcome-doc-chips">
+                    {intro.documents.map((document) => (
+                      <span className="welcome-doc-chip" key={document.name} title={`${document.page_count ? `${document.page_count}페이지 · ` : ""}${document.chunk_count}개 문단`}>
+                        <FileText size={12} />{document.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            <form className="chat-composer-wrap" onSubmit={submit}>
-              <div className="chat-composer">
-                <textarea aria-label="질문 입력" placeholder="연결된 문서에 대해 질문해 보세요" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendQuestion(input); }
-                }} />
-                {busy ? <button className="send-button" type="button" aria-label="답변 생성 중지" onClick={() => abortRef.current?.abort()}><CircleStop size={19} /></button> : <button className="send-button" type="submit" aria-label="질문 전송" disabled={!input.trim()}><Send size={18} /></button>}
-              </div>
-              <span className="composer-hint">ELA는 연결된 문서만 참고해 답변하며, 중요한 내용은 원문을 확인하세요.</span>
-            </form>
-          </div>
-          <div
-            className={`chat-resizer${dragging ? " dragging" : ""}`}
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="대화 영역과 참고 문서 패널 폭 조절"
-            aria-valuenow={Math.round(ratio)}
-            aria-valuemin={50}
-            aria-valuemax={85}
-            tabIndex={0}
-            title="드래그해서 폭 조절 · 더블클릭하면 기본값"
-            onPointerDown={startResize}
-            onDoubleClick={resetRatio}
-            onKeyDown={resizeByKey}
-          />
-          <aside className="context-panel">
-            {sources.length > 0 ? (
-              <>
-                <h2>이번 답변에 참고한 문서</h2><p>답변에 실제로 사용된 문서입니다.</p>
-                <VerifyToggle active />
-                {sources.map((source) => (
-                  <article className="source-card" key={source.id}>
-                    <div className="source-card-head"><FileText size={17} color="#2864f0" /><div><strong>{source.document_name}</strong><span>{source.page_number ? `${source.page_number}페이지 · ` : ""}{source.section_title || (source.source_type === "qa" ? "QA" : "문서")}</span></div></div>
-                    <p>{source.excerpt}</p>
-                  </article>
-                ))}
-              </>
-            ) : (
-              <>
-                <h2>현재 연결 문서</h2>
-                <p>{knowledge.length ? `${knowledge.length}개 문서 · ${totalChunks.toLocaleString()}개 문단이 분석되어 있습니다.` : "답변에 사용할 수 있는 문서를 확인할 수 있습니다."}</p>
-                <VerifyToggle active={knowledge.length > 0} />
-                {knowledgeQuery.isLoading && <div className="panel-empty"><LoaderCircle className="loading-ring" size={18} /><span>문서 목록을 불러오는 중</span></div>}
-                {knowledgeQuery.isError && <div className="panel-empty"><CircleAlert size={18} /><span>문서 목록을 불러오지 못했습니다.</span></div>}
-                {knowledge.map((document) => (
-                  <article className="source-card" key={document.id}>
-                    <div className="source-card-head"><FileText size={17} color="#2864f0" /><div><strong>{document.original_filename}</strong><span>{document.page_count ? `${document.page_count}페이지 · ` : ""}{document.chunk_count}개 문단 분석</span></div></div>
-                  </article>
-                ))}
-                {!knowledge.length && !knowledgeQuery.isLoading && !knowledgeQuery.isError && (
-                  <div className="panel-empty"><FileText size={18} /><span>분석된 문서가 없습니다. 관리자 페이지에서 문서를 올려주세요.</span></div>
-                )}
-              </>
-            )}
-          </aside>
+          ) : (
+            <div className="conversation">
+              {messages.map((message, index) => (
+                <div className={`chat-message ${message.role}`} key={`${message.role}-${index}`}>
+                  <span className={`mini-avatar ${message.role === "user" ? "user-avatar" : ""}`}>{message.role === "user" ? "나" : <Bot size={13} />}</span>
+                  <div className="chat-bubble">
+                    {message.content
+                      ? <AnswerText text={message.content} />
+                      : busy && index === messages.length - 1
+                        ? <ThinkingIndicator phase={phase === "retrieving" ? "retrieving" : "generating"} />
+                        : null}
+                    {message.role === "assistant" && index === messages.length - 1 && sources.length > 0 && (
+                      <AnswerSources sources={sources} />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {error && <div className="form-error" role="alert">{error}</div>}
         </div>
-      </section>
+        <form className="chat-composer-wrap" onSubmit={submit}>
+          <div className="chat-composer">
+            <textarea aria-label="질문 입력" placeholder="궁금한 점을 입력해 주세요" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendQuestion(input); }
+            }} />
+            {busy ? <button className="send-button" type="button" aria-label="답변 생성 중지" onClick={() => abortRef.current?.abort()}><CircleStop size={19} /></button> : <button className="send-button" type="submit" aria-label="질문 전송" disabled={!input.trim()}><Send size={18} /></button>}
+          </div>
+          {/* 추측해서 답하지 않는다는 점은 알려야 하지만, "연결된 문서" 같은 내부 용어는 쓰지 않는다. */}
+          <span className="composer-hint">실제 안내 자료를 근거로 답변합니다. 중요한 내용은 원문을 함께 확인해 주세요.</span>
+        </form>
+      </div>
     </main>
   );
 }

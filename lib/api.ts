@@ -1,6 +1,6 @@
 export const DEFAULT_BACKEND_PORT = "7127";
 
-export type RuntimeConfig = { backendUrl?: string; backendPort?: string };
+export type RuntimeConfig = { backendUrl?: string; backendPort?: string; basePath?: string };
 
 /**
  * NEXT_PUBLIC_* 는 이 스택의 브라우저 번들에 인라인되지 않는다. 그래서 layout에서
@@ -9,6 +9,14 @@ export type RuntimeConfig = { backendUrl?: string; backendPort?: string };
 function runtimeConfig(): RuntimeConfig {
   if (typeof window === "undefined") return {};
   return (window as unknown as { __ELA__?: RuntimeConfig }).__ELA__ || {};
+}
+
+/**
+ * 서브패스로 서비스할 때의 앞자리(예: "/leehk").
+ * 한 도메인 아래에 고객사를 여러 개 올릴 때 next.config 의 basePath 와 같은 값이다.
+ */
+export function basePath(): string {
+  return runtimeConfig().basePath || "";
 }
 
 /**
@@ -67,6 +75,33 @@ export type KnowledgeDocument = {
   original_filename: string;
   page_count: number;
   chunk_count: number;
+};
+
+export type SuggestionItem = { question: string; hint: string };
+
+/** 채팅 첫 화면 구성. 관리자 페이지에서 정한 값을 인증 없이 읽는다. */
+export type ChatIntro = {
+  chat_title: string;
+  welcome_heading: string;
+  welcome_message: string;
+  suggestions: SuggestionItem[];
+  show_documents: boolean;
+  documents: { name: string; page_count: number; chunk_count: number }[];
+  document_count: number;
+  chunk_count: number;
+};
+
+/** 관리자만 읽고 쓰는 전체 설정. 첫 화면 항목과 검색 파라미터가 함께 들어 있다. */
+export type ChatbotSettings = {
+  system_prompt: string | null;
+  final_context_top_k: number;
+  max_context_tokens: number;
+  qa_priority_boost: number;
+  chat_title: string | null;
+  welcome_heading: string | null;
+  welcome_message: string | null;
+  suggestions: SuggestionItem[];
+  show_documents: boolean;
 };
 
 export type AccountRole = "admin" | "user";

@@ -74,7 +74,7 @@ async def basic_rate_limit(request: Request, call_next):
                 del request_windows[stale]
     return await call_next(request)
 
-for router in [system.router, auth.router, documents.router, documents.knowledge_router, qa.router, settings_api.router, chat.router, chat.conversations_router, debug.router]:
+for router in [system.router, auth.router, documents.router, documents.knowledge_router, qa.router, settings_api.router, settings_api.public_router, chat.router, chat.conversations_router, debug.router]:
     app.include_router(router)
 
 
