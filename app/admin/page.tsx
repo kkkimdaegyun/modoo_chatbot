@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity, Bot, CheckCircle2, CircleAlert, FileText, LoaderCircle, LogOut,
-  MessageCircle, RefreshCw, ShieldCheck, Trash2, UploadCloud,
+  MessageCircle, RefreshCw, ShieldCheck, Trash2, UploadCloud, UserRound,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -181,14 +181,14 @@ export default function AdminPage() {
           <Brand />
           <div className="topbar-actions">
             <span className="status-pill live"><i className="status-dot" />시스템 운영 중</span>
-            <span className="account-pill"><ShieldCheck size={13} />{account.name || account.username}</span>
+            <span className="account-pill" title="로그인한 계정"><UserRound size={13} />{account.name || account.username}</span>
             <Link className="button button-secondary button-compact" href="/"><Bot size={15} /> 챗봇 열기</Link>
             <button className="button button-secondary button-compact" onClick={logout}><LogOut size={14} /> 로그아웃</button>
           </div>
         </header>
         <div className="admin-content">
           <div className="admin-heading">
-            <div><h2>문서 관리</h2><p>업로드한 문서의 분석·임베딩 상태를 확인하고 관리합니다.</p></div>
+            <div><h2>문서 관리</h2><p>업로드한 문서의 분석 상태를 확인하고 관리합니다.</p></div>
           </div>
 
             <div className="stats-grid">
@@ -201,12 +201,14 @@ export default function AdminPage() {
             </div>
             <div className="admin-grid">
               <div className="admin-card">
-                <div className="admin-card-head"><h3>연결된 문서</h3><button className="icon-button" aria-label="문서 새로고침" onClick={() => void documentsQuery.refetch()}><RefreshCw size={14} /></button></div>
+                <div className="admin-card-head"><h3>연결된 문서 <em>{documents.length}</em></h3><button className="icon-button" aria-label="문서 새로고침" onClick={() => void documentsQuery.refetch()}><RefreshCw size={14} /></button></div>
                 {documentsQuery.isError && <div className="form-error">백엔드에 연결할 수 없습니다. Docker 서비스 상태를 확인해 주세요.</div>}
-                <table className="document-table"><thead><tr><th>문서</th><th>처리 상태</th><th>페이지</th><th>청크</th><th>작업</th></tr></thead><tbody>
-                  {documents.map((document) => <tr key={document.id}><td><span className="document-name"><FileText size={15} color="#2864f0" />{document.original_filename}</span></td><td><DocumentStatus document={document} /></td><td>{document.page_count || "—"}</td><td>{document.chunk_count || "—"}</td><td><div className="table-actions"><button className="icon-button" aria-label="재인덱싱" onClick={() => void reindexDocument(document.id)}><RefreshCw size={13} /></button><button className="icon-button" aria-label="문서 삭제" onClick={() => void removeDocument(document.id)}><Trash2 size={13} /></button></div></td></tr>)}
-                  {!documents.length && !documentsQuery.isLoading && <tr><td colSpan={5}>연결된 문서가 없습니다. 오른쪽에서 첫 문서를 업로드하세요.</td></tr>}
-                </tbody></table>
+                <div className="table-scroll">
+                  <table className="document-table"><thead><tr><th>문서</th><th>처리 상태</th><th>페이지</th><th>문단</th><th>작업</th></tr></thead><tbody>
+                    {documents.map((document) => <tr key={document.id}><td><span className="document-name"><FileText size={16} color="#2864f0" />{document.original_filename}</span></td><td><DocumentStatus document={document} /></td><td>{document.page_count || "—"}</td><td>{document.chunk_count || "—"}</td><td><div className="table-actions"><button className="icon-button" aria-label="재인덱싱" onClick={() => void reindexDocument(document.id)}><RefreshCw size={13} /></button><button className="icon-button" aria-label="문서 삭제" onClick={() => void removeDocument(document.id)}><Trash2 size={13} /></button></div></td></tr>)}
+                    {!documents.length && !documentsQuery.isLoading && <tr><td colSpan={5}>연결된 문서가 없습니다. 오른쪽에서 첫 문서를 업로드하세요.</td></tr>}
+                  </tbody></table>
+                </div>
               </div>
               <div className="admin-card">
                 <div className="admin-card-head"><h3>새 문서 업로드</h3></div>
