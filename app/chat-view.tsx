@@ -58,7 +58,7 @@ function renderInline(text: string, key: string): ReactNode[] {
     } else {
       const numbers = Array.from(new Set(match[2].match(/\d+/g) || []));
       nodes.push(
-        <sup className="cite" key={`${key}-c${count}`} title="답변 근거 출처">
+        <sup className="cite" key={`${key}-c${count}`} title="답변에 참고한 문서">
           {numbers.join(",")}
         </sup>,
       );
@@ -95,7 +95,7 @@ function AnswerText({ text }: { text: string }) {
     }
     flushBullets();
     if (!line.trim()) continue;
-    // 한 문단 안에서도 문장마다 줄을 바꿔 근거 단위로 읽히게 한다.
+    // 한 문단 안에서도 문장마다 줄을 바꿔 참고 문서 단위로 읽히게 한다.
     const key = `p${blocks.length}`;
     blocks.push(
       <p key={key}>
@@ -119,7 +119,7 @@ function VerifyToggle({ active }: { active: boolean }) {
       <ShieldCheck size={17} />
       <div>
         <strong>출처 검증 {active ? "활성화" : "비활성"}</strong>
-        <span>{active ? "검색된 근거만 답변에 사용합니다." : "문서를 올리면 자동으로 켜집니다."}</span>
+        <span>{active ? "참고한 문서 내용만 답변에 사용합니다." : "문서를 올리면 자동으로 켜집니다."}</span>
       </div>
       <span className="verify-switch" aria-hidden="true"><i /></span>
     </div>
@@ -130,13 +130,18 @@ function ThinkingIndicator({ phase }: { phase: "retrieving" | "generating" }) {
   return (
     <span className="thinking" role="status">
       <span className="thinking-dots"><i /><i /><i /></span>
-      {phase === "retrieving" ? "문서에서 근거를 찾고 있어요" : "답변을 작성하고 있어요"}
+      {phase === "retrieving" ? "관련 문서를 찾아보고 있어요" : "답변을 작성하고 있어요"}
     </span>
   );
 }
 
-/** 대화 영역이 차지하는 기본 비율(%). 나머지가 근거 패널 몫이다. */
-const DEFAULT_RATIO = 75;
+/**
+ * 대화 영역이 차지하는 기본 비율(%). 나머지가 참고 문서 패널 몫이다.
+ * 첫 화면은 8:2, 답변에 참고 문서가 붙으면 7:3으로 자동으로 넓어진다.
+ * 핸들을 끌어 직접 정한 값이 있으면 그 값이 두 기본값보다 우선한다.
+ */
+const IDLE_RATIO = 80;
+const ANSWER_RATIO = 70;
 const RATIO_KEY = "ela_chat_ratio";
 const clampRatio = (value: number) => Math.min(85, Math.max(50, value));
 
@@ -146,22 +151,29 @@ export default function ChatView() {
   const [phase, setPhase] = useState<"idle" | "retrieving" | "generating" | "error">("idle");
   const [error, setError] = useState("");
   const [sources, setSources] = useState<Source[]>([]);
-  const [ratio, setRatio] = useState(DEFAULT_RATIO);
+  const [customRatio, setCustomRatio] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const layoutRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const busy = phase === "retrieving" || phase === "generating";
+  const ratio = customRatio ?? (sources.length ? ANSWER_RATIO : IDLE_RATIO);
 
   // 지난번에 조절해 둔 폭을 기억해서 다시 들어와도 같은 비율로 보여준다.
   useEffect(() => {
     const saved = Number(localStorage.getItem(RATIO_KEY));
-    if (saved) setRatio(clampRatio(saved));
+    if (saved) setCustomRatio(clampRatio(saved));
   }, []);
 
   function applyRatio(next: number) {
     const value = clampRatio(next);
-    setRatio(value);
+    setCustomRatio(value);
     localStorage.setItem(RATIO_KEY, String(Math.round(value)));
+  }
+
+  /** 직접 정한 폭을 버리고 화면 상태에 따른 기본 비율로 되돌린다. */
+  function resetRatio() {
+    setCustomRatio(null);
+    localStorage.removeItem(RATIO_KEY);
   }
 
   function startResize(event: ReactPointerEvent<HTMLDivElement>) {
@@ -194,7 +206,7 @@ export default function ChatView() {
   function resizeByKey(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "ArrowLeft") applyRatio(ratio - 2);
     else if (event.key === "ArrowRight") applyRatio(ratio + 2);
-    else if (event.key === "Home" || event.key === "Enter") applyRatio(DEFAULT_RATIO);
+    else if (event.key === "Home" || event.key === "Enter") resetRatio();
     else return;
     event.preventDefault();
   }
@@ -324,7 +336,7 @@ export default function ChatView() {
                 <div className="chat-welcome">
                   <span className="big-bot"><Bot size={26} /></span>
                   <h2>무엇이 궁금하신가요?</h2>
-                  <p>연결된 회사 문서에서 정확한 근거를 찾아 답변해 드립니다.</p>
+                  <p>연결된 회사 문서에서 정확한 내용을 찾아 답변해 드립니다.</p>
                   <div className="suggestions">
                     {suggestions.map((question) => <button className="suggestion" key={question} onClick={() => void sendQuestion(question)}>{question}<ChevronRight size={14} /></button>)}
                   </div>
@@ -357,27 +369,27 @@ export default function ChatView() {
                 }} />
                 {busy ? <button className="send-button" type="button" aria-label="답변 생성 중지" onClick={() => abortRef.current?.abort()}><CircleStop size={19} /></button> : <button className="send-button" type="submit" aria-label="질문 전송" disabled={!input.trim()}><Send size={18} /></button>}
               </div>
-              <span className="composer-hint">ELA는 연결된 문서만을 근거로 답변하며, 중요한 내용은 원문 출처를 확인하세요.</span>
+              <span className="composer-hint">ELA는 연결된 문서만 참고해 답변하며, 중요한 내용은 원문을 확인하세요.</span>
             </form>
           </div>
           <div
             className={`chat-resizer${dragging ? " dragging" : ""}`}
             role="separator"
             aria-orientation="vertical"
-            aria-label="대화 영역과 근거 패널 폭 조절"
+            aria-label="대화 영역과 참고 문서 패널 폭 조절"
             aria-valuenow={Math.round(ratio)}
             aria-valuemin={50}
             aria-valuemax={85}
             tabIndex={0}
             title="드래그해서 폭 조절 · 더블클릭하면 기본값"
             onPointerDown={startResize}
-            onDoubleClick={() => applyRatio(DEFAULT_RATIO)}
+            onDoubleClick={resetRatio}
             onKeyDown={resizeByKey}
           />
           <aside className="context-panel">
             {sources.length > 0 ? (
               <>
-                <h2>이번 답변의 근거</h2><p>답변에 실제로 사용된 출처입니다.</p>
+                <h2>이번 답변에 참고한 문서</h2><p>답변에 실제로 사용된 문서입니다.</p>
                 <VerifyToggle active />
                 {sources.map((source) => (
                   <article className="source-card" key={source.id}>

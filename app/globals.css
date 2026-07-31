@@ -211,8 +211,9 @@ footer { padding: 36px 0; border-top: 1px solid #e7eaf0; }
 .button-compact { height: 34px; padding: 0 12px; border-radius: 9px; font-size: 12.5px; }
 .status-pill { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #bde8d0; border-radius: 999px; padding: 6px 11px; color: #158252; background: #f2fcf7; font-size: 11px; font-weight: 700; transition: .2s ease; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #27b873; }
-/* 상단 배지는 좌우 요소 너비와 무관하게 헤더 정중앙에 고정한다. 색: 초록(대기) → 파랑(작업 중) → 빨강(연결 문제) */
-.app-topbar > .status-pill { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+/* 사이드바(260px)를 뺀 대화 영역이 아니라 화면 전체 기준 정중앙에 놓는다.
+   top 34px = 헤더 높이(68px)의 절반. 색: 초록(대기) → 파랑(작업 중) → 빨강(연결 문제) */
+.app-topbar > .status-pill { position: fixed; left: 50%; top: 34px; transform: translate(-50%, -50%); z-index: 5; }
 .status-pill.busy { border-color: #bcd3ff; color: var(--blue); background: var(--blue-soft); }
 .status-pill.busy .status-dot { background: var(--blue); }
 .status-pill.error { border-color: #ffd1ce; color: #c94f48; background: #fff4f3; }
@@ -224,8 +225,14 @@ footer { padding: 36px 0; border-top: 1px solid #e7eaf0; }
 }
 
 /* Chat */
-/* 대화 : 근거 패널 = 기본 7.5 : 2.5. --chat-ratio 는 드래그 핸들이 인라인으로 갱신한다. */
-.chat-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, calc(var(--chat-ratio, 75) * 1%)) 7px minmax(0, 1fr); }
+/* 첫 화면 8:2 → 답변이 나오면 7:3. --chat-ratio 는 드래그 핸들이 인라인으로 갱신한다. */
+.chat-layout {
+  flex: 1; min-height: 0; display: grid;
+  grid-template-columns: minmax(0, calc(var(--chat-ratio, 80) * 1%)) 7px minmax(0, 1fr);
+  transition: grid-template-columns .28s ease;
+}
+/* 끄는 중에는 손가락을 따라 즉시 움직여야 하므로 전환 효과를 끈다. */
+body.resizing .chat-layout { transition: none; }
 .chat-resizer { position: relative; cursor: col-resize; background: transparent; touch-action: none; }
 .chat-resizer::before { content: ""; position: absolute; inset: 0 -4px; }
 .chat-resizer::after {

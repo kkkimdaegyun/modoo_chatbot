@@ -53,7 +53,7 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
 def chat_stream(payload: ChatRequest) -> StreamingResponse:
     def events() -> Iterator[str]:
         started = time.perf_counter()
-        yield sse("retrieval_started", {"message": "문서에서 근거를 찾고 있습니다."})
+        yield sse("retrieval_started", {"message": "관련 문서를 찾고 있습니다."})
         with SessionLocal() as db:
             try:
                 result, context, selected, system_prompt = run_retrieval(db, payload)
