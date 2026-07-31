@@ -154,9 +154,18 @@ export default function ChatView() {
   const [customRatio, setCustomRatio] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const layoutRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickToBottom = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
   const busy = phase === "retrieving" || phase === "generating";
   const ratio = customRatio ?? (sources.length ? ANSWER_RATIO : IDLE_RATIO);
+
+  // 답변이 늘어나는 동안 맨 아래를 따라간다. 위로 올려 읽고 있으면 따라가지 않는다.
+  useEffect(() => {
+    const area = scrollRef.current;
+    if (!area || !stickToBottom.current) return;
+    area.scrollTop = area.scrollHeight;
+  }, [messages]);
 
   // 지난번에 조절해 둔 폭을 기억해서 다시 들어와도 같은 비율로 보여준다.
   useEffect(() => {
@@ -234,7 +243,8 @@ export default function ChatView() {
   async function sendQuestion(question: string) {
     const text = question.trim();
     if (!text || busy) return;
-    setInput(""); setError(""); setPhase("retrieving");
+    // 이전 답변의 출처가 남아 있으면 새 답변의 근거인 것처럼 보인다.
+    setInput(""); setError(""); setSources([]); setPhase("retrieving");
     const history = [...messages, { role: "user" as const, content: text }];
     setMessages([...history, { role: "assistant", content: "" }]);
     const controller = new AbortController();
@@ -331,7 +341,14 @@ export default function ChatView() {
           style={{ "--chat-ratio": ratio } as CSSProperties}
         >
           <div className="chat-column">
-            <div className="chat-scroll">
+            <div
+              className="chat-scroll"
+              ref={scrollRef}
+              onScroll={(event) => {
+                const area = event.currentTarget;
+                stickToBottom.current = area.scrollHeight - area.scrollTop - area.clientHeight < 80;
+              }}
+            >
               {messages.length === 0 ? (
                 <div className="chat-welcome">
                   <span className="big-bot"><Bot size={26} /></span>

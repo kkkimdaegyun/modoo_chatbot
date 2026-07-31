@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Bot, Check, Copy, MessageCircle, Send, X } from "lucide-react";
+import { ArrowLeft, Bot, Check, Copy, LoaderCircle, MessageCircle, Send, X } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { apiBase } from "../../lib/api";
@@ -36,14 +36,16 @@ export default function WidgetPage() {
   const [messages, setMessages] = useState([
     { role: "assistant", content: "안녕하세요! 회사 문서를 바탕으로 궁금한 점을 안내해 드릴게요." },
   ]);
+  const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState("");
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     const text = question.trim();
-    if (!text) return;
+    if (!text || sending) return;
     setQuestion("");
+    setSending(true);
     setMessages((current) => [...current, { role: "user", content: text }]);
     try {
       const response = await fetch(`${apiBase()}/api/chat`, {
@@ -55,6 +57,8 @@ export default function WidgetPage() {
       setMessages((current) => [...current, { role: "assistant", content: result.answer || result.detail || "답변을 확인하지 못했습니다." }]);
     } catch {
       setMessages((current) => [...current, { role: "assistant", content: "현재 상담 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요." }]);
+    } finally {
+      setSending(false);
     }
   }
 
@@ -97,7 +101,7 @@ export default function WidgetPage() {
       {open && <section className="widget-window">
         <header><span className="avatar blue"><Bot size={18} /></span><div><strong>ELA 상담 어시스턴트</strong><span>● 온라인 · 24시간 응대</span></div><button aria-label="위젯 닫기" onClick={() => setOpen(false)}><X size={18} /></button></header>
         <div className="widget-messages">{messages.map((message, index) => <div className={`widget-message ${message.role}`} key={index}>{message.content}</div>)}</div>
-        <form onSubmit={submit}><input aria-label="위젯 질문 입력" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="무엇이 궁금하신가요?" /><button aria-label="질문 전송"><Send size={16} /></button></form>
+        <form onSubmit={submit}><input aria-label="위젯 질문 입력" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder={sending ? "답변을 기다리는 중입니다" : "무엇이 궁금하신가요?"} disabled={sending} /><button aria-label="질문 전송" disabled={sending || !question.trim()}>{sending ? <LoaderCircle className="loading-ring" size={16} /> : <Send size={16} />}</button></form>
       </section>}
       {!open && <button className="widget-launcher" aria-label="상담 위젯 열기" onClick={() => setOpen(true)}><MessageCircle size={25} /></button>}
     </main>

@@ -1,6 +1,8 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
+    # EC2 재부팅이나 컨테이너 비정상 종료 후에도 사람이 손대지 않고 살아나야 한다.
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ela_chatbot}
       POSTGRES_USER: ${POSTGRES_USER:-ela}
@@ -13,10 +15,16 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # DB는 인터넷에 열지 않는다. 서버 안에서만 psql로 붙을 수 있다.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    mem_limit: ${POSTGRES_MEMORY_LIMIT:-1g}
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
   api:
-    image: ela-chatbot-api:local
+    image: ela-chatbot-api:${COMPOSE_PROJECT_NAME:-book}
+    restart: unless-stopped
     build:
       context: ./apps/api
     env_file: .env
@@ -31,11 +39,28 @@ services:
     volumes:
       - uploaded_files:/app/data/uploads
       - huggingface_cache:/app/.cache/huggingface
+      # 고객사 계정 목록. 호스트 파일을 그대로 읽으므로 수정하면 즉시 반영된다.
+      - ./accounts.json:/app/accounts.json:ro
     ports:
-      - "${API_PORT:-7127}:8000"
+      # 프록시(nginx)를 앞에 두면 BIND_HOST=127.0.0.1 로 외부 노출을 막는다.
+      - "${BIND_HOST:-0.0.0.0}:${API_PORT:-7127}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health',timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # 첫 실행은 임베딩 모델을 내려받느라 오래 걸린다.
+      start_period: 300s
+    # 한 고객사가 메모리를 다 먹고 서버 전체를 넘어뜨리지 않도록 상한을 둔다.
+    # 넘으면 이 컨테이너만 죽고 restart 정책으로 곧바로 되살아난다.
+    mem_limit: ${API_MEMORY_LIMIT:-3g}
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
   frontend:
-    image: ela-chatbot-frontend:local
+    image: ela-chatbot-frontend:${COMPOSE_PROJECT_NAME:-book}
+    restart: unless-stopped
     build:
       context: .
       dockerfile: Dockerfile.web
@@ -47,7 +72,17 @@ services:
     depends_on:
       - api
     ports:
-      - "${FRONTEND_PORT:-7128}:3000"
+      - "${BIND_HOST:-0.0.0.0}:${FRONTEND_PORT:-7128}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    mem_limit: ${FRONTEND_MEMORY_LIMIT:-2g}
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
 volumes:
   postgres_data:

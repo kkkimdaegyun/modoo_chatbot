@@ -57,7 +57,10 @@ request_windows: dict[str, deque[float]] = defaultdict(deque)
 @app.middleware("http")
 async def basic_rate_limit(request: Request, call_next):
     if request.url.path.startswith("/api/chat"):
-        key = request.client.host if request.client else "unknown"
+        # nginx 뒤에 두면 모든 요청의 client.host 가 프록시 IP 하나로 보인다.
+        # 그대로 세면 고객사 전체가 한 명으로 묶여 60건 만에 다 같이 429 를 맞는다.
+        forwarded = request.headers.get("x-forwarded-for", "")
+        key = forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
         now = time.monotonic()
         window = request_windows[key]
         while window and now - window[0] > 60:
@@ -65,6 +68,10 @@ async def basic_rate_limit(request: Request, call_next):
         if len(window) >= 60:
             return JSONResponse(status_code=429, content={"detail": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."})
         window.append(now)
+        # 다녀간 IP마다 빈 큐가 계속 쌓이지 않도록 조용해진 항목은 정리한다.
+        if len(request_windows) > 1000:
+            for stale in [ip for ip, times in request_windows.items() if not times]:
+                del request_windows[stale]
     return await call_next(request)
 
 for router in [system.router, auth.router, documents.router, documents.knowledge_router, qa.router, settings_api.router, chat.router, chat.conversations_router, debug.router]:

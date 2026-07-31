@@ -7,10 +7,10 @@ import {
   MessageCircle, RefreshCw, ShieldCheck, Trash2, UploadCloud, UserRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Account, apiFetch, apiBase, AuthResult, DocumentItem, SystemStatus } from "../../lib/api";
+import { Account, ApiError, apiFetch, apiBase, AuthResult, DocumentItem, SystemStatus } from "../../lib/api";
 
 const loginSchema = z.object({
   username: z.string().min(1, "아이디를 입력해 주세요."),
@@ -20,6 +20,61 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 const TOKEN_KEY = "ela_admin_token";
 const ACCOUNT_KEY = "ela_admin_account";
+const ACCEPT_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".csv", ".xlsx", ".json"];
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+
+type UploadProgress = { index: number; total: number; name: string; percent: number };
+
+/**
+ * fetch 는 업로드 진행률을 알려주지 않아서 이 요청만 XMLHttpRequest 로 보낸다.
+ * register 로 넘긴 요청 객체는 "취소" 버튼이 abort 할 수 있게 바깥에 보관한다.
+ */
+function uploadFile(
+  file: File,
+  token: string,
+  onProgress: (percent: number) => void,
+  register: (request: XMLHttpRequest | null) => void,
+) {
+  return new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    register(request);
+    request.open("POST", `${apiBase()}/api/documents/upload`);
+    if (token) request.setRequestHeader("Authorization", `Bearer ${token}`);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    request.onload = () => {
+      register(null);
+      if (request.status >= 200 && request.status < 300) {
+        resolve();
+        return;
+      }
+      let detail = `${file.name} 업로드에 실패했습니다.`;
+      try {
+        detail = JSON.parse(request.responseText)?.detail || detail;
+      } catch {
+        // 서버가 JSON 이 아닌 응답을 준 경우엔 기본 문구를 쓴다.
+      }
+      reject(new Error(detail));
+    };
+    request.onerror = () => { register(null); reject(new Error("네트워크 오류로 업로드가 중단되었습니다.")); };
+    request.onabort = () => { register(null); reject(new Error("업로드를 취소했습니다.")); };
+    const data = new FormData();
+    data.append("file", file);
+    request.send(data);
+  });
+}
+
+/** 올릴 수 없는 파일이면 고객사가 바로 이해할 수 있는 이유를 돌려준다. */
+function rejectReason(file: File): string | null {
+  if (!ACCEPT_EXTENSIONS.some((extension) => file.name.toLowerCase().endsWith(extension))) {
+    return `${file.name} 은(는) 지원하지 않는 형식입니다. PDF, DOCX, TXT, MD, CSV, XLSX, JSON 파일만 올릴 수 있어요.`;
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return `${file.name} 은(는) ${(file.size / 1024 / 1024).toFixed(1)}MB 로 최대 50MB를 넘습니다.`;
+  }
+  return null;
+}
 
 function Brand() {
   return <Link className="brand" href="/"><span className="brand-mark"><MessageCircle size={18} /></span><span>ELA Chatbot</span></Link>;
@@ -31,6 +86,9 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState("");
   const [dragging, setDragging] = useState(false);
   const [uploadLabel, setUploadLabel] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const [progress, setProgress] = useState<UploadProgress | null>(null);
+  const uploadRequestRef = useRef<XMLHttpRequest | null>(null);
   const queryClient = useQueryClient();
   const form = useForm<LoginForm>({ resolver: zodResolver(loginSchema), defaultValues: { username: "", password: "" } });
 
@@ -55,14 +113,16 @@ export default function AdminPage() {
     sessionStorage.setItem(ACCOUNT_KEY, JSON.stringify(meQuery.data));
   }, [meQuery.data]);
   useEffect(() => {
-    // 토큰이 만료·폐기됐으면 저장된 세션을 버리고 로그인 화면으로 되돌린다.
+    // 토큰이 만료·폐기됐을 때(401)만 세션을 버린다.
+    // 서버 재시작 같은 일시적 통신 오류로 로그인 화면으로 튕기면 작업 중이던 내용을 잃는다.
     if (!meQuery.isError) return;
+    if (!(meQuery.error instanceof ApiError) || meQuery.error.status !== 401) return;
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(ACCOUNT_KEY);
     setToken("");
     setAccount(null);
     setLoginError("세션이 만료되었습니다. 다시 로그인해 주세요.");
-  }, [meQuery.isError]);
+  }, [meQuery.isError, meQuery.error]);
   const statusQuery = useQuery({
     queryKey: ["system-status"],
     queryFn: () => apiFetch<SystemStatus>("/api/system/status"),
@@ -98,21 +158,37 @@ export default function AdminPage() {
 
   async function upload(files: FileList | null) {
     if (!files?.length) return;
-    setUploadLabel("업로드 중");
+    const list = Array.from(files);
+    // 서버까지 보내고 나서 거절당하면 큰 파일일수록 기다린 시간이 아까우니 미리 걸러낸다.
+    const blocked = list.map(rejectReason).find(Boolean);
+    if (blocked) {
+      setProgress(null);
+      setUploadLabel("");
+      setUploadError(blocked);
+      return;
+    }
+    setUploadError("");
+    setUploadLabel("");
     try {
-      for (const file of Array.from(files)) {
-        const data = new FormData();
-        data.append("file", file);
-        const response = await fetch(`${apiBase()}/api/documents/upload`, { method: "POST", body: data, headers: authHeaders });
-        if (!response.ok) {
-          const detail = await response.json().catch(() => null);
-          throw new Error(detail?.detail || `${file.name} 업로드 실패`);
-        }
+      for (const [index, file] of list.entries()) {
+        const base = { index: index + 1, total: list.length, name: file.name };
+        setProgress({ ...base, percent: 0 });
+        await uploadFile(
+          file,
+          token,
+          (percent) => setProgress({ ...base, percent }),
+          (request) => { uploadRequestRef.current = request; },
+        );
       }
-      setUploadLabel("문서 분석 및 지식 인덱싱 시작");
+      setProgress(null);
+      setUploadLabel(`${list.length}개 문서 분석을 시작했습니다. 왼쪽 목록에서 진행률을 확인하세요.`);
       await queryClient.invalidateQueries({ queryKey: ["documents"] });
     } catch (error) {
-      setUploadLabel(error instanceof Error ? error.message : "업로드 실패");
+      setProgress(null);
+      setUploadLabel("");
+      setUploadError(error instanceof Error ? error.message : "업로드에 실패했습니다.");
+      // 도중에 끊겼어도 이미 올라간 파일은 목록에 보여야 한다.
+      await queryClient.invalidateQueries({ queryKey: ["documents"] });
     }
   }
 
@@ -205,17 +281,46 @@ export default function AdminPage() {
                 {documentsQuery.isError && <div className="form-error">백엔드에 연결할 수 없습니다. Docker 서비스 상태를 확인해 주세요.</div>}
                 <div className="table-scroll">
                   <table className="document-table"><thead><tr><th>문서</th><th>처리 상태</th><th>페이지</th><th>문단</th><th>작업</th></tr></thead><tbody>
-                    {documents.map((document) => <tr key={document.id}><td><span className="document-name"><FileText size={16} color="#2864f0" />{document.original_filename}</span></td><td><DocumentStatus document={document} /></td><td>{document.page_count || "—"}</td><td>{document.chunk_count || "—"}</td><td><div className="table-actions"><button className="icon-button" aria-label="재인덱싱" onClick={() => void reindexDocument(document.id)}><RefreshCw size={13} /></button><button className="icon-button" aria-label="문서 삭제" onClick={() => void removeDocument(document.id)}><Trash2 size={13} /></button></div></td></tr>)}
+                    {documents.map((document) => <tr key={document.id}><td><span className="document-name"><FileText size={16} color="#2864f0" /><span title={document.original_filename}>{document.original_filename}</span></span></td><td><DocumentStatus document={document} /></td><td>{document.page_count || "—"}</td><td>{document.chunk_count || "—"}</td><td><div className="table-actions"><button className="icon-button" aria-label="재인덱싱" onClick={() => void reindexDocument(document.id)}><RefreshCw size={13} /></button><button className="icon-button" aria-label="문서 삭제" onClick={() => void removeDocument(document.id)}><Trash2 size={13} /></button></div></td></tr>)}
                     {!documents.length && !documentsQuery.isLoading && <tr><td colSpan={5}>연결된 문서가 없습니다. 오른쪽에서 첫 문서를 업로드하세요.</td></tr>}
                   </tbody></table>
                 </div>
               </div>
               <div className="admin-card">
                 <div className="admin-card-head"><h3>새 문서 업로드</h3></div>
-                <div className={`dropzone ${dragging ? "dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); void upload(event.dataTransfer.files); }}>
-                  <label><UploadCloud size={31} /><strong>파일을 끌어놓거나 선택하세요</strong><span>PDF, DOCX, TXT, MD, CSV, XLSX, JSON · 최대 50MB</span><input type="file" multiple accept=".pdf,.docx,.txt,.md,.csv,.xlsx,.json" onChange={(event) => void upload(event.target.files)} /></label>
-                </div>
+                <label
+                  className={`dropzone ${dragging ? "dragging" : ""}`}
+                  onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={(event) => { event.preventDefault(); setDragging(false); void upload(event.dataTransfer.files); }}
+                >
+                  <UploadCloud size={44} />
+                  <strong>파일을 여기에 끌어다 놓거나</strong>
+                  <span className="button button-primary upload-pick">파일 선택</span>
+                  <small>PDF, DOCX, TXT, MD, CSV, XLSX, JSON · 파일당 최대 50MB</small>
+                  {/* 화면에서는 숨기되 키보드 탭으로는 닿을 수 있어야 해서 display:none 을 쓰지 않는다. */}
+                  <input
+                    type="file"
+                    multiple
+                    accept={ACCEPT_EXTENSIONS.join(",")}
+                    onChange={(event) => {
+                      const input = event.target;
+                      void upload(input.files).finally(() => { input.value = ""; });
+                    }}
+                  />
+                </label>
+                {progress && (
+                  <div className="upload-progress">
+                    <div className="upload-progress-head">
+                      <span title={progress.name}>{progress.total > 1 ? `${progress.index}/${progress.total} · ` : ""}{progress.name}</span>
+                      <strong>{progress.percent >= 100 ? "확인 중" : `${progress.percent}%`}</strong>
+                      <button type="button" onClick={() => uploadRequestRef.current?.abort()}>취소</button>
+                    </div>
+                    <div className="progress-track"><div className="progress-fill" style={{ width: `${progress.percent}%` }} /></div>
+                  </div>
+                )}
                 {uploadLabel && <div className="upload-state"><Activity size={14} /> {uploadLabel}</div>}
+                {uploadError && <div className="form-error upload-error" role="alert">{uploadError}</div>}
               </div>
             </div>
         </div>
@@ -226,7 +331,7 @@ export default function AdminPage() {
 
 function DocumentStatus({ document }: { document: DocumentItem }) {
   if (document.status === "ready") {
-    return <span className="badge"><CheckCircle2 size={11} />지식 반영 완료</span>;
+    return <span className="badge"><CheckCircle2 size={11} />학습 완료</span>;
   }
   if (document.status === "failed") {
     return <span className="badge failed" title={document.error_message || undefined}><CircleAlert size={11} />{document.stage || "처리 실패"}</span>;

@@ -1,4 +1,5 @@
 import json
+import re
 import time
 import uuid
 from collections.abc import Iterator
@@ -20,6 +21,8 @@ from app.services.retrieval import RetrievalPipeline
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 NO_CONTEXT = "업로드된 문서에서는 해당 내용을 확인하기 어렵습니다."
+# 아직 닫히지 않은 인용 표기의 앞부분. 여기에 맞으면 다음 토큰까지 기다린다.
+CITATION_HEAD = re.compile(r"\[[\s,S0-9]{0,10}")
 
 
 def sse(event: str, data: dict[str, object]) -> str:
@@ -67,8 +70,20 @@ def chat_stream(payload: ChatRequest) -> StreamingResponse:
                 prompt = PromptBuilder().build(payload.question, context, payload.conversation_history, system_prompt)
                 yield sse("generation_started", {"model": "gemini"})
                 allowed = {item["source_id"] for item in selected}
+                # 인용 표기가 토큰 경계에서 "[S" + "1]" 로 잘리면 검증 정규식이 못 잡는다.
+                # 인용이 시작된 흔적이 보이면 닫힐 때까지 잠깐 들고 있다가 함께 내보낸다.
+                pending = ""
                 for token in GeminiProvider().generate_stream(prompt):
-                    yield sse("token", {"text": GeminiProvider.sanitize_citations(token, allowed)})
+                    pending += token
+                    cut = pending.rfind("[")
+                    if cut != -1 and CITATION_HEAD.fullmatch(pending[cut:]):
+                        emit, pending = pending[:cut], pending[cut:]
+                    else:
+                        emit, pending = pending, ""
+                    if emit:
+                        yield sse("token", {"text": GeminiProvider.sanitize_citations(emit, allowed)})
+                if pending:
+                    yield sse("token", {"text": GeminiProvider.sanitize_citations(pending, allowed)})
                 elapsed = time.perf_counter() - started
                 record_answer_seconds(elapsed)
                 yield sse("sources", {"sources": public_sources})

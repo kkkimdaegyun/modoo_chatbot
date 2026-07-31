@@ -67,7 +67,24 @@ bash start.sh
 
 호스트 포트가 이미 사용 중이면 `.env`의 `FRONTEND_PORT`, `API_PORT`, `POSTGRES_PORT`를 바꾸세요. 프론트엔드 포트를 바꿀 때는 `FRONTEND_URL`과 `CORS_ORIGINS`도 같이 맞춰야 브라우저 요청이 CORS에서 막히지 않습니다.
 
-로그인 계정은 `apps/api/app/core/accounts.py`의 `ACCOUNTS` 목록에 직접 정의합니다. 회원가입은 없으며, 계정을 추가·수정한 뒤 API를 재시작하면 반영됩니다. 비밀번호가 평문으로 들어가므로 저장소를 공개하지 마세요.
+### 고객사 계정 추가
+
+회원가입은 없고, 레포 루트의 `accounts.json` 에 적힌 계정만 로그인할 수 있습니다. 코드는 건드리지 않습니다.
+
+```json
+{
+  "accounts": [
+    { "company": "테스트 고객사", "username": "test", "password": "1111", "role": "admin" },
+    { "company": "OO 주식회사", "username": "oo-corp", "password": "발급한-비밀번호", "role": "admin" }
+  ]
+}
+```
+
+- `company` 는 관리자 화면 우측 상단에 표시되는 고객사 이름입니다.
+- `role` 은 `admin`(관리자 페이지 사용) 또는 `user`(채팅만)이며 생략하면 `admin` 입니다.
+- 저장하면 다음 로그인 요청부터 바로 반영됩니다. 컨테이너 재시작이 필요하면 `./start.sh` 를 실행하세요.
+- 파일이 없으면 `./start.sh` 가 `accounts.example.json` 을 복사해 만들어 줍니다.
+- 비밀번호가 평문이라 `accounts.json` 은 `.gitignore` 에 등록돼 있습니다. 커밋하지 마세요.
 
 ### CPU
 

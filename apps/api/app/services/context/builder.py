@@ -10,11 +10,13 @@ class ContextBuilder:
         selected: list[dict[str, Any]] = []
         total_tokens = 0
         blocks: list[str] = []
-        for index, item in enumerate(results, start=1):
+        for item in results:
             token_count = int(item.get("token_count") or max(1, len(item["content"]) // 3))
             if total_tokens + token_count > budget:
                 continue
-            source_id = f"S{index}"
+            # 토큰 예산에 걸려 건너뛴 항목이 있어도 번호가 비지 않도록 선택된 순서대로 매긴다.
+            # (S1, S2, S4 처럼 비면 화면의 [1][2][3] 칩과 각주 번호가 어긋난다)
+            source_id = f"S{len(selected) + 1}"
             selected_item = {**item, "source_id": source_id}
             selected.append(selected_item)
             total_tokens += token_count

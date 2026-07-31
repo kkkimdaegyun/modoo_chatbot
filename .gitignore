@@ -50,3 +50,6 @@ next-env.d.ts
 /apps/api/**/__pycache__/
 /test-results/
 /playwright-report/
+
+# 고객사 로그인 계정(평문 비밀번호). 예시 파일만 커밋한다.
+/accounts.json

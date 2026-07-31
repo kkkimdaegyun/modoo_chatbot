@@ -83,6 +83,16 @@ export type AuthResult = {
   user: Account | null;
 };
 
+/** 401(인증 만료)과 네트워크 장애를 구분해야 해서 상태 코드를 함께 던진다. */
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
@@ -96,7 +106,7 @@ export async function apiFetch<T>(
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
-    throw new Error(payload?.detail || "요청을 처리하지 못했습니다.");
+    throw new ApiError(payload?.detail || "요청을 처리하지 못했습니다.", response.status);
   }
   return response.json() as Promise<T>;
 }
