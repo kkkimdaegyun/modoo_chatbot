@@ -17,7 +17,6 @@ const loginSchema = z.object({
   password: z.string().min(1, "비밀번호를 입력해 주세요."),
 });
 type LoginForm = z.infer<typeof loginSchema>;
-type QaItem = { id: string; question: string; answer: string; category: string; is_active: boolean };
 
 const TOKEN_KEY = "ela_admin_token";
 const ACCOUNT_KEY = "ela_admin_account";
@@ -77,11 +76,6 @@ export default function AdminPage() {
     // 처리 중인 문서가 있으면 진행률이 움직이도록 계속 새로 받아온다.
     refetchInterval: (query) =>
       (query.state.data || []).some((item) => item.status !== "ready" && item.status !== "failed") ? 3_000 : false,
-  });
-  const qaQuery = useQuery({
-    queryKey: ["qa"],
-    queryFn: () => apiFetch<QaItem[]>("/api/qa", { headers: authHeaders }),
-    enabled: Boolean(token) && isAdmin,
   });
 
   function applyAuth(result: AuthResult) {
@@ -175,7 +169,6 @@ export default function AdminPage() {
   }
 
   const documents = documentsQuery.data || [];
-  const qas = qaQuery.data || [];
   const status = statusQuery.data;
   const readyDocs = documents.filter((item) => item.status === "ready").length;
   const totalChunks = documents.reduce((sum, item) => sum + item.chunk_count, 0);
@@ -200,15 +193,11 @@ export default function AdminPage() {
 
             <div className="stats-grid">
               <div className="stat-card"><span>연결 문서</span><strong>{documents.length}</strong><small>{readyDocs}개 답변 가능</small></div>
-              <div className="stat-card"><span>지식 청크</span><strong>{totalChunks.toLocaleString()}</strong><small>BGE-M3 임베딩</small></div>
-              <div className="stat-card"><span>구조화 QA</span><strong>{qas.length}</strong><small>우선 검색 대상</small></div>
-              <div className="stat-card"><span>Gemini 연결</span><strong>{status?.gemini_configured ? "정상" : "미설정"}</strong><small>{status?.gemini_model || "환경변수 확인"}</small></div>
-            </div>
-            <div className="stats-grid">
-              <div className="stat-card"><span>총 페이지</span><strong>{totalPages.toLocaleString()}</strong><small>인덱싱된 문서 분량</small></div>
-              <div className="stat-card"><span>임베딩 엔진</span><strong>{status?.embedding_model_loaded ? (status?.embedding_device || "cpu").toUpperCase() : "대기"}</strong><small>{status?.embedding_model_loaded ? "모델 로드 완료" : "첫 요청 시 로드"}</small></div>
-              <div className="stat-card"><span>리랭커</span><strong>{status?.reranker_model_loaded ? (status?.reranker_device || "cpu").toUpperCase() : "대기"}</strong><small>{status?.reranker_model_loaded ? "모델 로드 완료" : "첫 요청 시 로드"}</small></div>
-              <div className="stat-card"><span>운영 시간</span><strong>24/7</strong><small>{status?.database_connected ? "DB 연결 정상" : "DB 연결 확인 필요"}</small></div>
+              <div className="stat-card"><span>분석된 문단</span><strong>{totalChunks.toLocaleString()}</strong><small>검색 가능한 단위</small></div>
+              <div className="stat-card"><span>총 페이지</span><strong>{totalPages.toLocaleString()}</strong><small>분석 완료된 분량</small></div>
+              <div className="stat-card"><span>API 연결 상태</span><strong>{status?.gemini_configured ? "정상" : "미설정"}</strong><small>{status?.gemini_configured ? "답변 생성 준비 완료" : "환경변수 확인 필요"}</small></div>
+              <div className="stat-card"><span>답변 시간</span><strong>{status?.answer_seconds_avg ? `${status.answer_seconds_avg}초 이내` : "측정 전"}</strong><small>{status?.answer_samples ? `최근 ${status.answer_samples}건 평균` : "질문이 들어오면 측정됩니다"}</small></div>
+              <div className="stat-card"><span>운영 시간</span><strong>24/7</strong><small>{status?.database_connected ? "정상 운영 중" : "연결 확인 필요"}</small></div>
             </div>
             <div className="admin-grid">
               <div className="admin-card">

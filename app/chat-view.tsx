@@ -7,7 +7,7 @@ import {
   MessageCircle, Plus, Send, Settings, ShieldCheck,
 } from "lucide-react";
 import {
-  CSSProperties, FormEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode,
+  CSSProperties, Fragment, FormEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode,
   useEffect, useMemo, useRef, useState,
 } from "react";
 import { apiBase, apiFetch, KnowledgeDocument, Source } from "../lib/api";
@@ -22,6 +22,23 @@ const suggestions = [
 
 function Brand() {
   return <Link className="brand" href="/"><span className="brand-mark"><MessageCircle size={18} /></span><span>ELA Chatbot</span></Link>;
+}
+
+/** 문장이 끝나고 다음 문장이 시작되는 지점. 소수점·이메일·URL 처럼 뒤에 공백이 없는 점은 건드리지 않는다. */
+const SENTENCE_BREAK = /(?<=[.!?])\s+(?=\S)/g;
+
+/**
+ * 모델은 "…않습니다 [S2]." 처럼 각주를 마침표 앞에 붙여서 보낸다.
+ * 그대로 그리면 "…않습니다 ² ." 가 되어 마침표가 따로 떨어져 보이므로
+ * 각주를 문장부호 뒤로 옮기고 앞 공백을 없애 "…않습니다.²" 로 맞춘다.
+ */
+function tidyCitations(text: string) {
+  return text
+    .replace(
+      /[ \t]*((?:\[\s*S\d+(?:\s*,\s*S?\d+)*\s*\][ \t]*)+)([.,!?;:]+)/g,
+      (_match, cites: string, punctuation: string) => `${punctuation}${cites.trim()}`,
+    )
+    .replace(/[ \t]+(\[\s*S\d+)/g, "$1");
 }
 
 /**
@@ -64,7 +81,7 @@ function AnswerText({ text }: { text: string }) {
     bullets = [];
     blocks.push(
       <ul className="answer-list" key={`ul${blocks.length}`}>
-        {items.map((item, index) => <li key={index}>{renderInline(item, `li${blocks.length}-${index}`)}</li>)}
+        {items.map((item, index) => <li key={index}>{renderInline(tidyCitations(item), `li${blocks.length}-${index}`)}</li>)}
       </ul>,
     );
   };
@@ -77,7 +94,19 @@ function AnswerText({ text }: { text: string }) {
       continue;
     }
     flushBullets();
-    if (line.trim()) blocks.push(<p key={`p${blocks.length}`}>{renderInline(line, `p${blocks.length}`)}</p>);
+    if (!line.trim()) continue;
+    // 한 문단 안에서도 문장마다 줄을 바꿔 근거 단위로 읽히게 한다.
+    const key = `p${blocks.length}`;
+    blocks.push(
+      <p key={key}>
+        {line.split(SENTENCE_BREAK).map((sentence, index) => (
+          <Fragment key={`${key}-s${index}`}>
+            {index > 0 && <br />}
+            {renderInline(tidyCitations(sentence), `${key}-s${index}`)}
+          </Fragment>
+        ))}
+      </p>,
+    );
   }
   flushBullets();
   return <>{blocks}</>;

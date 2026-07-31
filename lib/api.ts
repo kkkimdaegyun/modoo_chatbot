@@ -36,6 +36,9 @@ export type SystemStatus = {
   gemini_configured: boolean;
   gemini_model: string;
   storage_available: boolean;
+  answer_samples: number;
+  answer_seconds_avg: number | null;
+  answer_seconds_last: number | null;
 };
 
 export type Source = {

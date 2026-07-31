@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from sqlalchemy import text
 
 from app.core.config import settings
+from app.core.metrics import answer_time_summary
 from app.db.session import SessionLocal
 from app.services.embeddings import BGEEmbeddingService
 from app.services.llm import GeminiProvider
@@ -43,4 +44,5 @@ def system_status() -> dict[str, object]:
         "gemini_configured": gemini["configured"],
         "gemini_model": gemini["model"],
         "storage_available": storage_available,
+        **answer_time_summary(),
     }

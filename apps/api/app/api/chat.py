@@ -1,4 +1,5 @@
 import json
+import time
 import uuid
 from collections.abc import Iterator
 
@@ -8,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import workspace_id
+from app.core.metrics import record_answer_seconds
 from app.db.session import SessionLocal, get_db
 from app.models import ChatbotSetting, Conversation, Message
 from app.services.context import ContextBuilder
@@ -33,6 +35,7 @@ def run_retrieval(db: Session, payload: ChatRequest) -> tuple[dict, str, list[di
 
 @router.post("", response_model=ChatResponse)
 def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
+    started = time.perf_counter()
     result, context, selected, system_prompt = run_retrieval(db, payload)
     if not selected:
         return ChatResponse(answer=NO_CONTEXT, sources=[])
@@ -42,12 +45,14 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
     except GeminiConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     answer = GeminiProvider.sanitize_citations(answer, {item["source_id"] for item in selected})
+    record_answer_seconds(time.perf_counter() - started)
     return ChatResponse(answer=answer, sources=ContextBuilder.public_sources(selected))
 
 
 @router.post("/stream")
 def chat_stream(payload: ChatRequest) -> StreamingResponse:
     def events() -> Iterator[str]:
+        started = time.perf_counter()
         yield sse("retrieval_started", {"message": "문서에서 근거를 찾고 있습니다."})
         with SessionLocal() as db:
             try:
@@ -64,8 +69,10 @@ def chat_stream(payload: ChatRequest) -> StreamingResponse:
                 allowed = {item["source_id"] for item in selected}
                 for token in GeminiProvider().generate_stream(prompt):
                     yield sse("token", {"text": GeminiProvider.sanitize_citations(token, allowed)})
+                elapsed = time.perf_counter() - started
+                record_answer_seconds(elapsed)
                 yield sse("sources", {"sources": public_sources})
-                yield sse("completed", {"finish_reason": "stop"})
+                yield sse("completed", {"finish_reason": "stop", "duration_ms": round(elapsed * 1000)})
             except GeminiConfigurationError as exc:
                 yield sse("error", {"type": "configuration", "message": str(exc)})
             except GeminiGenerationError as exc:
