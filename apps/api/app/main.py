@@ -56,7 +56,7 @@ request_windows: dict[str, deque[float]] = defaultdict(deque)
 
 @app.middleware("http")
 async def basic_rate_limit(request: Request, call_next):
-    if request.url.path.startswith("/api/chat"):
+    if request.url.path.startswith(f"{settings.base_path}/api/chat"):
         # nginx 뒤에 두면 모든 요청의 client.host 가 프록시 IP 하나로 보인다.
         # 그대로 세면 고객사 전체가 한 명으로 묶여 60건 만에 다 같이 429 를 맞는다.
         forwarded = request.headers.get("x-forwarded-for", "")
@@ -74,8 +74,12 @@ async def basic_rate_limit(request: Request, call_next):
                 del request_windows[stale]
     return await call_next(request)
 
+# /health 는 nginx 를 거치지 않고 docker-compose 헬스체크가 컨테이너 안에서 접두어 없이
+# 직접 부르므로 base_path 를 안 붙인다. 그 외 라우트는 전부 base_path 를 붙여서, nginx 가
+# 경로를 벗겨내지 않고 그대로 넘겨도(프론트엔드 basePath 라우팅과 같은 방식) 동작한다.
+app.include_router(system.health_router)
 for router in [system.router, auth.router, documents.router, documents.knowledge_router, qa.router, settings_api.router, settings_api.public_router, chat.router, chat.conversations_router, debug.router]:
-    app.include_router(router)
+    app.include_router(router, prefix=settings.base_path)
 
 
 @app.exception_handler(Exception)

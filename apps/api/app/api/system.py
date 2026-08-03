@@ -11,9 +11,11 @@ from app.services.llm import GeminiProvider
 from app.services.reranking import BGERerankerService
 
 router = APIRouter(tags=["system"])
+# docker-compose 헬스체크가 컨테이너 안에서 접두어 없이 직접 호출하므로 base_path 를 안 붙인다.
+health_router = APIRouter(tags=["system"])
 
 
-@router.get("/health")
+@health_router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": settings.app_name}
 

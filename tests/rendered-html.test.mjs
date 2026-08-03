@@ -1,16 +1,42 @@
 import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
-import test from "node:test";
+import { spawn } from "node:child_process";
+import test, { before, after } from "node:test";
+
+const PORT = 4111;
+const BASE_URL = `http://localhost:${PORT}`;
+
+let serverProcess;
+
+async function waitForServer(url, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      await fetch(url);
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+  }
+  throw new Error(`Server at ${url} did not respond within ${timeoutMs}ms`);
+}
+
+before(async () => {
+  serverProcess = spawn(
+    "node_modules/.bin/next",
+    ["start", "--hostname", "127.0.0.1", "--port", String(PORT)],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  serverProcess.stderr.on("data", (chunk) => process.stderr.write(chunk));
+  await waitForServer(BASE_URL, 30_000);
+});
+
+after(() => {
+  serverProcess?.kill();
+});
 
 async function render(path = "/") {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-  return worker.fetch(
-    new Request(`http://localhost${path}`, { headers: { accept: "text/html" } }),
-    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
-    { waitUntil() {}, passThroughOnException() {} },
-  );
+  return fetch(`${BASE_URL}${path}`, { headers: { accept: "text/html" } });
 }
 
 test("server-renders the customer chat page at the root", async () => {

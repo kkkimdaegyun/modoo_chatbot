@@ -86,12 +86,24 @@ class Settings(BaseSettings):
     model_cache_path: Path = ROOT / ".cache" / "huggingface"
     default_workspace_id: str = "00000000-0000-0000-0000-000000000001"
     run_gemini_integration_tests: bool = False
+    # 프론트엔드 next.config 의 basePath 와 같은 값(예: "/leehk"). 한 도메인 아래에
+    # 고객사를 여러 개 올릴 때, nginx 가 경로를 안 건드리고 그대로 넘겨도 API 라우트가
+    # 스스로 이 접두어를 이해하도록 한다. /health 는 예외로, docker-compose 헬스체크가
+    # 컨테이너 안에서 접두어 없이 직접 호출하므로 이 값과 무관하게 그대로 둔다.
+    base_path: str = ""
 
     @field_validator("cors_origins", mode="before")
     @classmethod
     def split_origins(cls, value: object) -> object:
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
+        return value
+
+    @field_validator("base_path", mode="before")
+    @classmethod
+    def normalize_base_path(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().rstrip("/")
         return value
 
 

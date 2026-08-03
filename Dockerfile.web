@@ -3,8 +3,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# 빌드와 실행을 한 단계에서 처리한다. vinext(0.0.50)는 산출물 위치가 버전마다 달라질 수 있어,
-# 결과물만 골라 옮기는 것보다 빌드한 자리에서 그대로 실행하는 쪽이 안전하다.
 FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
@@ -12,12 +10,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY app ./app
 COPY lib ./lib
 COPY public ./public
-COPY build ./build
-COPY worker ./worker
-COPY db ./db
-# vite.config.ts가 ./.openai/hosting.json을 import 한다.
-COPY .openai ./.openai
-COPY package.json package-lock.json tsconfig.json vite.config.ts next.config.ts postcss.config.mjs ./
+COPY package.json package-lock.json tsconfig.json next.config.ts postcss.config.mjs ./
 # 서브패스(예: helpcenter.example.com/leehk)로 서비스할 때의 앞자리.
 # next.config 의 basePath 는 빌드 시점에 번들에 박히므로 런타임 환경변수로는 바꿀 수 없다.
 # 그래서 build arg 로 받고, 실행 단계에도 같은 값을 남겨 layout 이 브라우저로 실어 보낸다.
@@ -27,5 +20,4 @@ ENV BASE_PATH=${BASE_PATH}
 # 오류가 나도 고객 화면에 개발용 오류 오버레이가 뜨지 않는다.
 RUN npm run build
 EXPOSE 3000
-# vinext는 --host가 아니라 --hostname을 받는다. 없으면 localhost에만 바인딩되어 포트 매핑이 닿지 않는다.
-CMD ["npm", "run", "start", "--", "--hostname", "0.0.0.0"]
+CMD ["npm", "run", "start", "--", "--hostname", "0.0.0.0", "--port", "3000"]

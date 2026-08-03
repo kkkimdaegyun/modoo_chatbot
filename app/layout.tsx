@@ -1,13 +1,21 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import localFont from "next/font/local";
 import { headers } from "next/headers";
 import "./globals.css";
 import { DEFAULT_BACKEND_PORT, RuntimeConfig } from "../lib/api";
 import { Providers } from "./providers";
 
-const geistSans = Geist({
+// next/font/google 대신 로컬 파일을 쓰는 이유: vinext(0.0.50)가 구글 폰트를
+// self-host 할 때 만드는 <link rel="preload"> 주소가 basePath 를 무시하고
+// 항상 "/assets/..."로 박힌다. /kbs 서브패스에서는 그 주소가 존재하지 않아
+// 폰트 로드가 400/404 로 실패한다. next/font/local 은 JS·CSS 번들과 같은
+// Vite 에셋 파이프라인을 타서 basePath 가 정상적으로 붙는다.
+// 파일 출처: subsets:["latin"] 로 받아오던 Geist 의 latin 서브셋
+// (.vinext/fonts/geist-*/geist-98bbbccb.woff2, 가변 폰트 weight 100~900).
+const geistSans = localFont({
+  src: "./fonts/geist-sans-latin.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  weight: "100 900",
 });
 
 /** next.config 의 basePath 와 같은 값. 서브패스로 서비스할 때 og:image 주소에도 붙어야 한다. */
